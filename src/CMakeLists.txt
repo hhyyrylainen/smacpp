@@ -1,1 +1,44 @@
-add_executable(smacpp main.cpp)
+
+add_library(smacppcommon
+  parse/CodeBlock.h
+  parse/CodeBlock.cpp
+  parse/ClangFrontendAction.h
+  parse/ClangASTAction.h  
+  parse/CodeBlockBuildingVisitor.h
+  parse/MainASTConsumer.h
+  integration/SMACPPFinder.h
+  integration/SMACPPFinder.cpp  
+  )
+
+target_link_libraries(smacppcommon PUBLIC
+  clangFrontend
+  clangParse
+  clangSema
+  clangAST
+  clangBasic
+  clangLex
+  clangTooling
+  clangSerialization
+  ${Boost_LIBRARIES}
+  )
+
+target_include_directories(smacppcommon PUBLIC ${CLANG_INCLUDE_DIRS})
+target_include_directories(smacppcommon PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
+add_library(smacpp-clang-plugin SHARED
+  integration/ClangPlugin.cpp
+  )
+
+target_link_libraries(smacpp-clang-plugin PRIVATE smacppcommon)
+
+if(UNIX)
+  add_executable(smacpp main.cpp)
+
+  target_link_libraries(smacpp PRIVATE smacppcommon)
+
+  # Same code a second time, just to easily have two programs with different names
+  add_executable(smacpp++ main.cpp)
+
+  target_link_libraries(smacpp++ PRIVATE smacppcommon)  
+endif()
+
