@@ -31,14 +31,20 @@ add_library(smacpp-clang-plugin SHARED
 
 target_link_libraries(smacpp-clang-plugin PRIVATE smacppcommon)
 
+install(TARGETS smacpp-clang-plugin)
+
 if(UNIX)
   add_executable(smacpp main.cpp)
 
   target_link_libraries(smacpp PRIVATE smacppcommon)
 
+  install(TARGETS smacpp)
+
   # Same code a second time, just to easily have two programs with different names
   add_executable(smacpp++ main.cpp)
 
-  target_link_libraries(smacpp++ PRIVATE smacppcommon)  
+  target_link_libraries(smacpp++ PRIVATE smacppcommon)
+
+  install(TARGETS smacpp++)
 endif()
 
