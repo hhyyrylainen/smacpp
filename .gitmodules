@@ -1,0 +1,3 @@
+[submodule "test/data/JM2018TS"]
+	path = test/data/JM2018TS
+	url = https://github.com/JMoerman/JM2018TS.git

@@ -12,6 +12,7 @@ After cloning:
 
 ```sh
 cd smacpp
+git submodule update --init
 mkdir build
 cd build
 cmake ..
