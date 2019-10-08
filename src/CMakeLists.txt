@@ -33,6 +33,16 @@ target_link_libraries(smacpp-clang-plugin PRIVATE smacppcommon)
 
 install(TARGETS smacpp-clang-plugin)
 
+
+add_library(smacpp-clang-analyzer SHARED
+  integration/AnalyzerPlugin.cpp
+  integration/SMACPPChecker.cpp  
+  )
+
+target_link_libraries(smacpp-clang-analyzer PRIVATE smacppcommon)
+
+install(TARGETS smacpp-clang-analyzer)
+
 if(UNIX)
   add_executable(smacpp main.cpp)
 
