@@ -57,8 +57,11 @@ int main(int argc, char* argv[])
         newArgumentValues.push_back("-fplugin=" + plugin);
     }
 
-    for(size_t i = 0; i < newArgumentValues.size(); ++i)
-        newArgs.push_back(const_cast<char*>(newArgumentValues[i].c_str()));
+    for(size_t i = 0; i < newArgumentValues.size(); ++i) {
+
+        // Put the loading args before any other arguments
+        newArgs.insert(newArgs.begin() + 1, const_cast<char*>(newArgumentValues[i].c_str()));
+    }
 
     // Null to terminate the list
     newArgs.push_back(nullptr);

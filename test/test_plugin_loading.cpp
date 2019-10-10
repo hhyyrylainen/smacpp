@@ -31,10 +31,10 @@ TEST_CASE("Normal clang help print works", "[plugin]")
     int result = c.exit_code();
 
     CHECK(result == 0);
-    CHECK(output.find_first_of("OPTIONS:") != std::string::npos);
+    CHECK(output.find("OPTIONS:") != std::string::npos);
 }
 
-TEST_CASE("Clang wrapper loads clang and prints help info", "[plugin]")
+TEST_CASE("Clang wrapper clang load doesn't cause an error", "[plugin]")
 {
     REQUIRE(boost::filesystem::exists(SMACPP_PATH));
 
@@ -51,11 +51,12 @@ TEST_CASE("Clang wrapper loads clang and prints help info", "[plugin]")
     c.wait();
     int result = c.exit_code();
 
+    INFO(output);
     CHECK(result == 0);
-    CHECK(output.find_first_of("Help for smacpp plugin") != std::string::npos);
+    CHECK(output.find("OPTIONS") != std::string::npos);
 }
 
-TEST_CASE("Normal plugin load syntax works", "[plugin]")
+TEST_CASE("Normal plugin load syntax runs without error", "[plugin]")
 {
     REQUIRE(boost::filesystem::exists(SMACPP_PLUGIN_PATH));
 
@@ -77,10 +78,10 @@ TEST_CASE("Normal plugin load syntax works", "[plugin]")
     int result = c.exit_code();
 
     CHECK(result == 0);
-    CHECK(output.find_first_of("Help for smacpp plugin") != std::string::npos);
+    CHECK(output.find("OPTIONS") != std::string::npos);
 }
 
-TEST_CASE("Manual plugin specifying (-Xclang) syntax works", "[plugin]")
+TEST_CASE("Manual plugin specifying (-Xclang) syntax doesn't error", "[plugin]")
 {
     REQUIRE(boost::filesystem::exists(SMACPP_PLUGIN_PATH));
 
@@ -101,11 +102,12 @@ TEST_CASE("Manual plugin specifying (-Xclang) syntax works", "[plugin]")
     c.wait();
     int result = c.exit_code();
 
+    INFO(output);
     CHECK(result == 0);
-    CHECK(output.find_first_of("Help for smacpp plugin") != std::string::npos);
+    CHECK(output.find("OPTIONS") != std::string::npos);
 }
 
-TEST_CASE("Loading static analyzer plugin works", "[plugin]")
+TEST_CASE("Loading static analyzer plugin doesn't error", "[plugin]")
 {
     REQUIRE(boost::filesystem::exists(SMACPP_ANALYZER_PLUGIN));
 
@@ -126,6 +128,7 @@ TEST_CASE("Loading static analyzer plugin works", "[plugin]")
     c.wait();
     int result = c.exit_code();
 
+    INFO(output);
     CHECK(result == 0);
-    CHECK(output.find_first_of("SMACPP") != std::string::npos);
+    CHECK(output.find("CHECKERS") != std::string::npos);
 }
