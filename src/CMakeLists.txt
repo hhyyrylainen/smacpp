@@ -2,12 +2,15 @@
 add_library(smacppcommon
   parse/CodeBlock.h
   parse/CodeBlock.cpp
+  parse/Condition.h
+  parse/Condition.cpp
   parse/ClangFrontendAction.h
-  parse/ClangASTAction.h  
+  parse/ClangFrontendAction.cpp  
+  parse/ClangASTAction.h
   parse/CodeBlockBuildingVisitor.h
   parse/MainASTConsumer.h
   integration/SMACPPFinder.h
-  integration/SMACPPFinder.cpp  
+  integration/SMACPPFinder.cpp
   )
 
 target_link_libraries(smacppcommon PUBLIC
@@ -22,6 +25,12 @@ target_link_libraries(smacppcommon PUBLIC
   ${Boost_LIBRARIES}
   )
 
+set_target_properties(smacppcommon PROPERTIES
+  CXX_STANDARD 17
+  CXX_EXTENSIONS OFF
+  POSITION_INDEPENDENT_CODE ON  
+  )
+
 target_include_directories(smacppcommon PUBLIC ${CLANG_INCLUDE_DIRS})
 target_include_directories(smacppcommon PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
@@ -31,15 +40,25 @@ add_library(smacpp-clang-plugin SHARED
 
 target_link_libraries(smacpp-clang-plugin PRIVATE smacppcommon)
 
+set_target_properties(smacpp-clang-plugin PROPERTIES
+  CXX_STANDARD 17
+  CXX_EXTENSIONS OFF
+  )
+
 install(TARGETS smacpp-clang-plugin)
 
 
 add_library(smacpp-clang-analyzer SHARED
   integration/AnalyzerPlugin.cpp
-  integration/SMACPPChecker.cpp  
+  integration/SMACPPChecker.cpp
   )
 
 target_link_libraries(smacpp-clang-analyzer PRIVATE smacppcommon)
+
+set_target_properties(smacpp-clang-analyzer PROPERTIES
+  CXX_STANDARD 17
+  CXX_EXTENSIONS OFF
+  )
 
 install(TARGETS smacpp-clang-analyzer)
 
@@ -48,6 +67,11 @@ if(UNIX)
 
   target_link_libraries(smacpp PRIVATE smacppcommon)
 
+  set_target_properties(smacpp PROPERTIES
+    CXX_STANDARD 17
+    CXX_EXTENSIONS OFF
+    )
+
   install(TARGETS smacpp)
 
   # Same code a second time, just to easily have two programs with different names
@@ -55,6 +79,10 @@ if(UNIX)
 
   target_link_libraries(smacpp++ PRIVATE smacppcommon)
 
+  set_target_properties(smacpp++ PROPERTIES
+    CXX_STANDARD 17
+    CXX_EXTENSIONS OFF
+    )
+
   install(TARGETS smacpp++)
 endif()
-

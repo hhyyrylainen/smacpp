@@ -8,7 +8,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "")
     "Set the build type, usually Release or RelWithDebInfo" FORCE)
 endif(CMAKE_BUILD_TYPE STREQUAL "")
 
-
 # Boost
 set(NEEDED_BOOST_COMPONENTS program_options system filesystem)
 

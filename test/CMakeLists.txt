@@ -8,6 +8,12 @@ target_link_libraries(smacpptest PRIVATE smacppcommon ${CMAKE_THREAD_LIBS_INIT})
 add_dependencies(smacpptest smacpp-clang-plugin smacpp)
 
 
+set_target_properties(smacpptest PROPERTIES
+  CXX_STANDARD 17
+  CXX_EXTENSIONS OFF
+  )
+
+
 # add_test(NAME catch_tests COMMAND smacpptest
 #   CONFIGURATIONS ALL
 #   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
