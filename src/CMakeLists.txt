@@ -1,13 +1,20 @@
 
+# if(UNIX)
+#   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined")
+# endif()
+
 add_library(smacppcommon
   parse/CodeBlock.h
   parse/CodeBlock.cpp
   parse/Condition.h
   parse/Condition.cpp
+  parse/ProcessedAction.h
+  parse/ProcessedAction.cpp
   parse/ClangFrontendAction.h
   parse/ClangFrontendAction.cpp  
   parse/ClangASTAction.h
   parse/CodeBlockBuildingVisitor.h
+  parse/CodeBlockBuildingVisitor.cpp
   parse/MainASTConsumer.h
   integration/SMACPPFinder.h
   integration/SMACPPFinder.cpp

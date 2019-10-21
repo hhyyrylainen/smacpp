@@ -15,12 +15,10 @@ public:
     {
         if(clang::VarDecl* var = clang::dyn_cast<clang::VarDecl>(ref->getDecl()); var) {
 
-            // var->getGlobalID();
-            const auto name = var->getNameAsString();
-
-            Parts.push_back(std::make_tuple(Condition::Part(VariableValue(name,
-                                                ValueRange(ValueRange::RANGE_CLASS::NotZero))),
-                COMBINE_OPERATOR::And));
+            Parts.push_back(
+                std::make_tuple(Condition::Part(VariableValue(VariableIdentifier(var),
+                                    ValueRange(ValueRange::RANGE_CLASS::NotZero))),
+                    COMBINE_OPERATOR::And));
         }
 
         return true;
@@ -28,6 +26,13 @@ public:
 
     std::vector<std::tuple<Condition::Part, COMBINE_OPERATOR>> Parts;
 };
+// ------------------------------------ //
+// VariableIdentifier
+VariableIdentifier::VariableIdentifier(clang::VarDecl* var) :
+    Name(var->getQualifiedNameAsString())
+{
+    // var->getGlobalID();
+}
 // ------------------------------------ //
 // ValueRange
 ValueRange ValueRange::Negate() const

@@ -10,6 +10,8 @@ namespace smacpp {
 struct VariableIdentifier {
     VariableIdentifier(const std::string& name) : Name(name) {}
 
+    VariableIdentifier(clang::VarDecl* var);
+
     std::string Dump() const
     {
         return Name;
