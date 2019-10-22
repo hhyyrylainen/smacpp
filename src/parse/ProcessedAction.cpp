@@ -30,6 +30,11 @@ std::string PrimitiveInfo::Dump() const
     }
 }
 // ------------------------------------ //
+std::string VarCopyInfo::Dump() const
+{
+    return "assign from " + Source.Dump();
+}
+// ------------------------------------ //
 // VariableState
 std::string VariableState::Dump() const
 {
@@ -37,6 +42,7 @@ std::string VariableState::Dump() const
     case STATE::Unknown: return "unknown";
     case STATE::Primitive: return std::get<PrimitiveInfo>(Value).Dump();
     case STATE::Buffer: return std::get<BufferInfo>(Value).Dump();
+    case STATE::CopyVar: return std::get<VarCopyInfo>(Value).Dump();
     }
 
     throw std::runtime_error("VariableState is in invalid state");
@@ -58,4 +64,17 @@ std::string ProcessedAction::Dump() const
 void VarDeclared::DumpSpecialized(std::stringstream& sstream) const
 {
     sstream << "VarDeclared " << Variable.Dump() << " value: " << State.Dump();
+}
+
+// ------------------------------------ //
+// VarAssigned
+void VarAssigned::DumpSpecialized(std::stringstream& sstream) const
+{
+    sstream << "VarAssigned " << Variable.Dump() << " = " << State.Dump();
+}
+
+// ArrayIndexAccess
+void ArrayIndexAccess::DumpSpecialized(std::stringstream& sstream) const
+{
+    sstream << "ArrayIndexAccess " << Array.Dump() << "[" << Index.Dump() << "]";
 }

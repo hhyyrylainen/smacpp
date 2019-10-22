@@ -9,6 +9,9 @@ namespace smacpp {
 //! Creates CodeBlock from AST and stores them for overall program analysis
 class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuildingVisitor> {
 
+    //! \brief Looks for a variable reference or an array subscript to a variable
+    class VariableRefOrArrayVisitor;
+
     class ValueVisitBase {
     public:
         ValueVisitBase(clang::ASTContext& context, CodeBlock& target);

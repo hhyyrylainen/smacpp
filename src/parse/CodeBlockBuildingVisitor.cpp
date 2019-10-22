@@ -3,7 +3,47 @@
 
 #include "ProcessedAction.h"
 
+#include <optional>
+
 using namespace smacpp;
+// ------------------------------------ //
+// CodeBlockBuildingVisitor::VariableRefOrArrayVisitor
+class CodeBlockBuildingVisitor::VariableRefOrArrayVisitor
+    : public clang::RecursiveASTVisitor<VariableRefOrArrayVisitor> {
+public:
+    bool VisitDeclRefExpr(clang::DeclRefExpr* expr)
+    {
+        if(clang::VarDecl* var = clang::dyn_cast<clang::VarDecl>(expr->getDecl()); var) {
+
+            VariableIdentifier ident(var);
+
+            llvm::outs() << "found var reference: " << ident.Dump() << "\n";
+
+            if(LikelyFullVariableAssign) {
+                FoundVar = ident;
+            }
+
+        } else {
+            llvm::outs() << "found unknown reference\n";
+        }
+
+
+        return true;
+    }
+
+    bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr* expr)
+    {
+        LikelyFullVariableAssign = false;
+        return true;
+    }
+
+    std::optional<VariableIdentifier> FoundVar;
+
+private:
+    bool LikelyFullVariableAssign = true;
+};
+
+
 // ------------------------------------ //
 #define VALUE_VISITOR_VISIT_TYPES                                 \
     bool VisitVarDecl(clang::VarDecl* var)                        \
@@ -55,7 +95,7 @@ public:
 
     bool VisitParmVarDecl(clang::ParmVarDecl* var)
     {
-        llvm::outs() << "function param: " << var->getQualifiedNameAsString() << "\n";
+        // llvm::outs() << "function param: " << var->getQualifiedNameAsString() << "\n";
 
         Target.AddFunctionParameter(VariableIdentifier(var));
 
@@ -167,15 +207,32 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitArraySubscriptExpr(
     if(!index)
         return true;
 
+    VariableRefOrArrayVisitor lhsVisitor;
+    lhsVisitor.TraverseStmt(expr->getLHS());
+
+    if(!lhsVisitor.FoundVar)
+        return true;
+
+    llvm::outs() << "found array access for variable: " << lhsVisitor.FoundVar->Dump() << "\n";
+
+    VariableState indexValue;
+
     if(index->getStmtClass() == clang::Stmt::StmtClass::IntegerLiteralClass) {
         const auto* literal = static_cast<const clang::IntegerLiteral*>(index);
 
         llvm::outs() << "used array index: " << literal->getValue() << "\n";
+
+        // TODO: this can only handle 64 bit numbers, anything higher will cause an error
+        indexValue.Set(PrimitiveInfo(literal->getValue().getSExtValue()));
+
     } else {
         llvm::outs() << "unknown array subscript index\n";
     }
 
-    // TODO: a sub visitor for getting to DeclRefExpr
+    if(indexValue.State != VariableState::STATE::Unknown) {
+        Target.AddProcessedAction(std::make_unique<action::ArrayIndexAccess>(
+            GetCurrentCondition(), *lhsVisitor.FoundVar, indexValue));
+    }
 
     return true;
 }
@@ -185,11 +242,25 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitBinaryOperator(clang::Binary
     if(clang::BO_Assign != op->getOpcode())
         return true;
 
-    llvm::outs() << "Assignment found: ";
-    op->dump();
+    // llvm::outs() << "Assignment found: ";
+    // op->dump();
 
-    // TODO: use a sub visitor on LHS and RHS to fish out the DeclRefExpr to see what
-    // they refer to
+    VariableRefOrArrayVisitor lhsVisitor;
+    lhsVisitor.TraverseStmt(op->getLHS());
+
+    VariableRefOrArrayVisitor rhsVisitor;
+    rhsVisitor.TraverseStmt(op->getRHS());
+
+    if(lhsVisitor.FoundVar && rhsVisitor.FoundVar) {
+        llvm::outs() << "Assignment found: " << lhsVisitor.FoundVar->Dump() << " = "
+                     << rhsVisitor.FoundVar->Dump() << "\n";
+
+        VariableState state;
+        state.Set(*rhsVisitor.FoundVar);
+
+        Target.AddProcessedAction(std::make_unique<action::VarAssigned>(
+            GetCurrentCondition(), *lhsVisitor.FoundVar, state));
+    }
 
     return true;
 }
