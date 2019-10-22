@@ -129,6 +129,24 @@ public:
     const VariableState Index;
 };
 
+class FunctionCall : public ProcessedAction {
+public:
+    FunctionCall(Condition condition, const std::string& function,
+        const std::vector<VariableState>& params) :
+        ProcessedAction(condition),
+        Function(function), Params(params)
+    {}
+
+protected:
+    void DumpSpecialized(std::stringstream& sstream) const override;
+
+public:
+    const std::string Function;
+    const std::vector<VariableState> Params;
+};
+
+
+
 }; // namespace action
 
 

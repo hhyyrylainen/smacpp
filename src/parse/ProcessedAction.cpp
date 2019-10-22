@@ -72,9 +72,26 @@ void VarAssigned::DumpSpecialized(std::stringstream& sstream) const
 {
     sstream << "VarAssigned " << Variable.Dump() << " = " << State.Dump();
 }
-
+// ------------------------------------ //
 // ArrayIndexAccess
 void ArrayIndexAccess::DumpSpecialized(std::stringstream& sstream) const
 {
     sstream << "ArrayIndexAccess " << Array.Dump() << "[" << Index.Dump() << "]";
+}
+// ------------------------------------ //
+// FunctionCall
+void FunctionCall::DumpSpecialized(std::stringstream& sstream) const
+{
+    sstream << "FunctionCall " << Function << "(";
+
+    bool first = true;
+
+    for(const auto& param : Params) {
+        if(!first)
+            sstream << ", ";
+        first = false;
+
+        sstream << param.Dump();
+    }
+    sstream << ")";
 }

@@ -12,6 +12,9 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
     //! \brief Looks for a variable reference or an array subscript to a variable
     class VariableRefOrArrayVisitor;
 
+    //! \brief Makes a VariableState from an Expr
+    class VariableStateFindVisitor;
+
     class ValueVisitBase {
     public:
         ValueVisitBase(clang::ASTContext& context, CodeBlock& target);
@@ -23,6 +26,8 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
         bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr* expr);
 
         bool VisitBinaryOperator(clang::BinaryOperator* op);
+
+        bool TraverseCallExpr(clang::CallExpr* call);
 
         virtual Condition GetCurrentCondition() const
         {

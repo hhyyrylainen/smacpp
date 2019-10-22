@@ -31,7 +31,7 @@ public:
 
     //! \brief Checks if dangerous conditions happen when this function is called with the
     //! given parameters
-    void CheckIfSafeToCall(const std::vector<ValueRange>& params);
+    void CheckIfSafeToCall(const std::vector<VariableState>& params);
 
     // //! \brief Computes an overall Condition that if it matches this is unsafe to call
     // Condition ComputeUnsafeInput();

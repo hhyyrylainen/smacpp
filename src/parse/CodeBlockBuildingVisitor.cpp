@@ -45,6 +45,31 @@ private:
 
 
 // ------------------------------------ //
+// CodeBlockBuildingVisitor::VariableRefOrArrayVisitor
+class CodeBlockBuildingVisitor::VariableStateFindVisitor
+    : public clang::RecursiveASTVisitor<VariableStateFindVisitor> {
+public:
+    // Parent type of all literals
+    // bool VisitExpr(clang::Expr* expr)
+    // {
+    //     return true;
+    // }
+
+    bool TraverseIntegerLiteral(clang::IntegerLiteral* value)
+    {
+        VariableState state;
+
+        // TODO: this can only handle 64 bit numbers, anything higher will cause an error
+        state.Set(PrimitiveInfo(value->getValue().getSExtValue()));
+        FoundValue = state;
+        return false;
+    }
+
+    std::optional<VariableState> FoundValue;
+};
+
+
+// ------------------------------------ //
 #define VALUE_VISITOR_VISIT_TYPES                                 \
     bool VisitVarDecl(clang::VarDecl* var)                        \
     {                                                             \
@@ -61,6 +86,10 @@ private:
     bool VisitBinaryOperator(clang::BinaryOperator* op)           \
     {                                                             \
         return ValueVisitBase::VisitBinaryOperator(op);           \
+    }                                                             \
+    bool TraverseCallExpr(clang::CallExpr* call)                  \
+    {                                                             \
+        return ValueVisitBase::TraverseCallExpr(call);            \
     }
 
 // ------------------------------------ //
@@ -261,6 +290,41 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitBinaryOperator(clang::Binary
         Target.AddProcessedAction(std::make_unique<action::VarAssigned>(
             GetCurrentCondition(), *lhsVisitor.FoundVar, state));
     }
+
+    return true;
+}
+
+bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseCallExpr(clang::CallExpr* call)
+{
+    if(!call->getDirectCallee())
+        return true;
+
+    const auto functionName = call->getDirectCallee()->getQualifiedNameAsString();
+
+    // llvm::outs() << "func call: " << functionName << "\n";
+
+    // llvm::outs() << "arg count: " <<  << "\n";
+
+    std::vector<VariableState> callParams;
+
+    for(size_t i = 0; i < call->getNumArgs(); ++i) {
+        clang::Expr* arg = call->getArg(i);
+
+        // llvm::outs() << "visiting arg(" << i << "): ";
+        // arg->dump();
+        VariableStateFindVisitor visitor;
+        visitor.TraverseStmt(arg);
+
+        if(visitor.FoundValue) {
+            callParams.push_back(*visitor.FoundValue);
+        } else {
+            callParams.push_back(VariableState());
+        }
+    }
+
+
+    Target.AddProcessedAction(std::make_unique<action::FunctionCall>(
+        GetCurrentCondition(), functionName, callParams));
 
     return true;
 }
