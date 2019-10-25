@@ -28,13 +28,18 @@ public:
         FunctionParameters.push_back(var);
     }
 
-
-    //! \brief Checks if dangerous conditions happen when this function is called with the
-    //! given parameters
-    void CheckIfSafeToCall(const std::vector<VariableState>& params);
+    const auto& GetActions() const
+    {
+        return Actions;
+    }
 
     // //! \brief Computes an overall Condition that if it matches this is unsafe to call
     // Condition ComputeUnsafeInput();
+
+    const auto& GetName() const
+    {
+        return Name;
+    }
 
     std::string Dump() const;
 

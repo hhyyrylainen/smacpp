@@ -2,6 +2,7 @@
 #include "CodeBlockBuildingVisitor.h"
 
 #include "ProcessedAction.h"
+#include "analysis/BlockRegistry.h"
 
 #include <optional>
 
@@ -330,8 +331,10 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseCallExpr(clang::CallExpr*
 }
 // ------------------------------------ //
 // CodeBlockBuildingVisitor
-CodeBlockBuildingVisitor::CodeBlockBuildingVisitor(clang::ASTContext& context) :
-    Context(context)
+CodeBlockBuildingVisitor::CodeBlockBuildingVisitor(
+    clang::ASTContext& context, BlockRegistry& registry) :
+    Context(context),
+    Registry(registry)
 {}
 // ------------------------------------ //
 bool CodeBlockBuildingVisitor::TraverseFunctionDecl(clang::FunctionDecl* fun)
@@ -344,6 +347,6 @@ bool CodeBlockBuildingVisitor::TraverseFunctionDecl(clang::FunctionDecl* fun)
 
     llvm::outs() << "completed block: " << block.Dump() << "\n";
 
-    // TODO: save the created code block
+    Registry.AddBlock(std::move(block));
     return true;
 }

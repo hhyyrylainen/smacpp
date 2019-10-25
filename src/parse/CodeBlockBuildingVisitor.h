@@ -6,6 +6,8 @@
 
 namespace smacpp {
 
+class BlockRegistry;
+
 //! Creates CodeBlock from AST and stores them for overall program analysis
 class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuildingVisitor> {
 
@@ -47,7 +49,7 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
     class FunctionVisitor;
 
 public:
-    CodeBlockBuildingVisitor(clang::ASTContext& context);
+    CodeBlockBuildingVisitor(clang::ASTContext& context, BlockRegistry& registry);
 
     // TODO: remove, example code
     bool VisitCXXRecordDecl(clang::CXXRecordDecl* Declaration)
@@ -71,6 +73,7 @@ public:
 
 private:
     clang::ASTContext& Context;
+    BlockRegistry& Registry;
 };
 
 } // namespace smacpp

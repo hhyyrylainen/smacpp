@@ -13,7 +13,8 @@ protected:
     std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
         clang::CompilerInstance& Compiler, llvm::StringRef InFile) override
     {
-        return std::make_unique<MainASTConsumer>(Compiler.getASTContext());
+        return std::make_unique<MainASTConsumer>( // Compiler.getASTContext()
+        );
     }
 
     bool ParseArgs(

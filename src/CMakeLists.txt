@@ -16,8 +16,13 @@ add_library(smacppcommon
   parse/CodeBlockBuildingVisitor.h
   parse/CodeBlockBuildingVisitor.cpp
   parse/MainASTConsumer.h
+  parse/MainASTConsumer.cpp
   integration/SMACPPFinder.h
   integration/SMACPPFinder.cpp
+  analysis/BlockRegistry.h
+  analysis/BlockRegistry.cpp
+  analysis/Analyzer.h
+  analysis/Analyzer.cpp
   )
 
 target_link_libraries(smacppcommon PUBLIC
