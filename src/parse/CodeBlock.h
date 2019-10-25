@@ -33,6 +33,11 @@ public:
         return Actions;
     }
 
+    const auto& GetParameters() const
+    {
+        return FunctionParameters;
+    }
+
     // //! \brief Computes an overall Condition that if it matches this is unsafe to call
     // Condition ComputeUnsafeInput();
 

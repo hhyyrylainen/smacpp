@@ -3,7 +3,9 @@
 #include "parse/ProcessedAction.h"
 
 
+#include <list>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace smacpp {
@@ -26,6 +28,23 @@ struct FoundProblem {
 
 //! Main class implementing the actual static analysis checks
 class Analyzer {
+    struct ProgramState {
+
+        void CreateLocal(VariableIdentifier identifier, VariableState initialState);
+
+        std::unordered_map<VariableIdentifier, VariableState> Variables;
+    };
+
+    struct AnalysisOperation {
+
+        AnalysisOperation(const std::vector<std::unique_ptr<ProcessedAction>>& actions) :
+            Actions(actions), State(std::make_shared<ProgramState>())
+        {}
+
+        const std::vector<std::unique_ptr<ProcessedAction>>& Actions;
+        std::shared_ptr<ProgramState> State;
+    };
+
 public:
     Analyzer(std::vector<FoundProblem>& reportProblems);
 
@@ -36,6 +55,10 @@ public:
     //! \returns True if analysis ran correctly. False if a fatal error was encountered
     bool BeginAnalysis(const CodeBlock& entryPoint, const BlockRegistry* availableFunctions,
         const std::vector<VariableState>& callParameters);
+
+private:
+    std::tuple<bool, std::list<AnalysisOperation>> PerformAnalysisOperation(
+        AnalysisOperation& operation);
 
 private:
     std::vector<FoundProblem>& Problems;

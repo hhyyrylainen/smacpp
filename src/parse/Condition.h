@@ -3,6 +3,7 @@
 #include <clang/AST/Stmt.h>
 
 #include <memory>
+#include <unordered_map>
 #include <variant>
 
 namespace smacpp {
@@ -130,3 +131,19 @@ private:
     std::vector<std::tuple<Part, COMBINE_OPERATOR>> Parts;
 };
 } // namespace smacpp
+
+
+namespace std {
+
+template<>
+struct hash<smacpp::VariableIdentifier> {
+    std::size_t operator()(const smacpp::VariableIdentifier& k) const
+    {
+        using std::hash;
+        using std::size_t;
+
+        return hash<std::string>()(k.Name);
+    }
+};
+
+} // namespace std
