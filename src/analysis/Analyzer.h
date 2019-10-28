@@ -25,36 +25,52 @@ struct FoundProblem {
     SEVERITY Severity;
 };
 
+//! Program state in analysis
+class ProgramState : public VariableValueProvider {
+public:
+    void CreateLocal(VariableIdentifier identifier, VariableState initialState);
+    void Assign(VariableIdentifier identifier, VariableState state);
+
+    //! \returns True if current state matches Condition. Unknown variables are assumed to
+    //! have the wrong value
+    bool MatchesCondition(const Condition& condition) const;
+
+    VariableState GetVariableValue(const VariableIdentifier& variable) const override;
+
+    std::unordered_map<VariableIdentifier, VariableState> Variables;
+};
+
+//! A single operation the analysis is split into
+class AnalysisOperation {
+public:
+    AnalysisOperation(const std::vector<std::unique_ptr<ProcessedAction>>& actions,
+        const BlockRegistry* availableFunctions, std::vector<FoundProblem>& reportProblems) :
+        Actions(actions),
+        State(std::make_shared<ProgramState>()), AvailableFunctions(availableFunctions),
+        Problems(reportProblems)
+    {}
+
+    // Double dispatch
+    void HandleAction(const action::FunctionCall* call);
+    void HandleAction(const action::VarDeclared* var);
+    void HandleAction(const action::VarAssigned* var);
+    void HandleAction(const action::ArrayIndexAccess* index);
+
+    //! Base action with no action
+    void HandleAction(const ProcessedAction* action) {}
+
+public:
+    const std::vector<std::unique_ptr<ProcessedAction>>& Actions;
+    std::shared_ptr<ProgramState> State;
+
+    std::list<AnalysisOperation> FoundCalls;
+
+    const BlockRegistry* AvailableFunctions = nullptr;
+    std::vector<FoundProblem>& Problems;
+};
 
 //! Main class implementing the actual static analysis checks
 class Analyzer {
-    class ProgramState : public VariableValueProvider {
-    public:
-        void CreateLocal(VariableIdentifier identifier, VariableState initialState);
-
-        //! \returns True if current state matches Condition. Unknown variables are assumed to
-        //! have the wrong value
-        bool MatchesCondition(const Condition& condition) const;
-
-        VariableState GetVariableValue(const VariableIdentifier& variable) const override;
-
-        std::unordered_map<VariableIdentifier, VariableState> Variables;
-    };
-
-    struct AnalysisOperation {
-
-        AnalysisOperation(const std::vector<std::unique_ptr<ProcessedAction>>& actions,
-            const BlockRegistry* availableFunctions) :
-            Actions(actions),
-            State(std::make_shared<ProgramState>()), AvailableFunctions(availableFunctions)
-        {}
-
-        const std::vector<std::unique_ptr<ProcessedAction>>& Actions;
-        std::shared_ptr<ProgramState> State;
-
-        const BlockRegistry* AvailableFunctions = nullptr;
-    };
-
 public:
     Analyzer(std::vector<FoundProblem>& reportProblems);
 
@@ -66,7 +82,7 @@ public:
     bool BeginAnalysis(const CodeBlock& entryPoint, const BlockRegistry* availableFunctions,
         const std::vector<VariableState>& callParameters);
 
-    bool ResolveCallParameters(AnalysisOperation& operation, const CodeBlock& function,
+    static bool ResolveCallParameters(AnalysisOperation& operation, const CodeBlock& function,
         const std::vector<VariableState>& callParameters);
 
 private:

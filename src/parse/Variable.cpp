@@ -1,6 +1,8 @@
 // ------------------------------------ //
 #include "Variable.h"
 
+#include "parse/Condition.h"
+
 #include <clang/AST/Decl.h>
 
 using namespace smacpp;
@@ -29,6 +31,19 @@ bool PrimitiveInfo::IsNonZero() const
         return (*var) != 0;
     } else if(auto var = std::get_if<double>(&Value); var) {
         return (*var) != 0;
+    } else {
+        throw std::runtime_error("unhandled variant in PrimitiveInfo");
+    }
+}
+
+PrimitiveInfo::Integer PrimitiveInfo::AsInteger() const
+{
+    if(auto var = std::get_if<bool>(&Value); var) {
+        return *var;
+    } else if(auto var = std::get_if<Integer>(&Value); var) {
+        return *var;
+    } else if(auto var = std::get_if<double>(&Value); var) {
+        return *var;
     } else {
         throw std::runtime_error("unhandled variant in PrimitiveInfo");
     }
@@ -68,6 +83,18 @@ int VariableState::ToZeroOrNonZero() const
     }
 
     throw std::runtime_error("this should be unreachable");
+}
+// ------------------------------------ //
+VariableState VariableState::Resolve(const VariableValueProvider& otherVariables) const
+{
+    VariableState result(*this);
+
+    while(result.State == STATE::CopyVar) {
+
+        result = otherVariables.GetVariableValue(std::get<VarCopyInfo>(Value).Source);
+    }
+
+    return result;
 }
 // ------------------------------------ //
 std::string VariableState::Dump() const

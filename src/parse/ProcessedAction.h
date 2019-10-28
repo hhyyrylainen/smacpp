@@ -7,6 +7,8 @@
 
 namespace smacpp {
 
+class AnalysisOperation;
+
 //! \brief Some action the program takes that is relevant for static analysis
 class ProcessedAction {
 public:
@@ -14,6 +16,8 @@ public:
     virtual ~ProcessedAction() = default;
 
     virtual std::string Dump() const;
+
+    virtual void Dispatch(AnalysisOperation& receiver) const = 0;
 
 protected:
     virtual void DumpSpecialized(std::stringstream& sstream) const = 0;
@@ -30,6 +34,8 @@ public:
         ProcessedAction(condition), Variable(var), State(state)
     {}
 
+    void Dispatch(AnalysisOperation& receiver) const override;
+
 protected:
     void DumpSpecialized(std::stringstream& sstream) const override;
 
@@ -43,6 +49,8 @@ public:
     VarAssigned(Condition condition, VariableIdentifier var, VariableState state) :
         ProcessedAction(condition), Variable(var), State(state)
     {}
+
+    void Dispatch(AnalysisOperation& receiver) const override;
 
 protected:
     void DumpSpecialized(std::stringstream& sstream) const override;
@@ -59,6 +67,8 @@ public:
         ProcessedAction(condition), Array(array), Index(index)
     {}
 
+    void Dispatch(AnalysisOperation& receiver) const override;
+
 protected:
     void DumpSpecialized(std::stringstream& sstream) const override;
 
@@ -74,6 +84,8 @@ public:
         ProcessedAction(condition),
         Function(function), Params(params)
     {}
+
+    void Dispatch(AnalysisOperation& receiver) const override;
 
 protected:
     void DumpSpecialized(std::stringstream& sstream) const override;

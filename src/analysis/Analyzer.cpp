@@ -31,21 +31,24 @@ std::string FoundProblem::FormatAsString() const
     return sstream.str();
 }
 // ------------------------------------ //
-// Analyzer::ProgramState
-void Analyzer::ProgramState::CreateLocal(
-    VariableIdentifier identifier, VariableState initialState)
+// ProgramState
+void ProgramState::CreateLocal(VariableIdentifier identifier, VariableState initialState)
 {
     // TODO: allow shadowing globals and locals defined in upper scope
     Variables[identifier] = initialState;
 }
+
+void ProgramState::Assign(VariableIdentifier identifier, VariableState state)
+{
+    Variables[identifier] = state;
+}
 // ------------------------------------ //
-bool Analyzer::ProgramState::MatchesCondition(const Condition& condition) const
+bool ProgramState::MatchesCondition(const Condition& condition) const
 {
     return condition.Evaluate(*this);
 }
 
-VariableState Analyzer::ProgramState::GetVariableValue(
-    const VariableIdentifier& variable) const
+VariableState ProgramState::GetVariableValue(const VariableIdentifier& variable) const
 {
     const auto found = Variables.find(variable);
 
@@ -60,6 +63,65 @@ VariableState Analyzer::ProgramState::GetVariableValue(
     return found->second;
 }
 // ------------------------------------ //
+// AnalysisOperation
+void AnalysisOperation::HandleAction(const action::FunctionCall* call)
+{
+    const CodeBlock* calledFunction = AvailableFunctions->FindFunction(call->Function);
+
+    if(calledFunction) {
+
+        AnalysisOperation newOp(calledFunction->GetActions(), AvailableFunctions, Problems);
+
+        if(Analyzer::ResolveCallParameters(newOp, *calledFunction, call->Params)) {
+            FoundCalls.push_back(std::move(newOp));
+        }
+    }
+}
+
+void AnalysisOperation::HandleAction(const action::VarDeclared* var)
+{
+    // TODO: should resolve happen here?
+    State->CreateLocal(var->Variable, var->State);
+}
+
+void AnalysisOperation::HandleAction(const action::VarAssigned* var)
+{
+    // TODO: should resolve happen here?
+    State->Assign(var->Variable, var->State);
+}
+
+void AnalysisOperation::HandleAction(const action::ArrayIndexAccess* index)
+{
+    const auto array = State->GetVariableValue(index->Array).Resolve(*State);
+
+    if(array.State == VariableState::STATE::Unknown)
+        return;
+
+    const auto indexVar = index->Index.Resolve(*State);
+
+    if(indexVar.State == VariableState::STATE::Unknown)
+        return;
+
+    if(auto buf = std::get_if<BufferInfo>(&array.Value); buf) {
+
+        // TODO: emit line numbers
+        if(buf->NullPtr) {
+            Problems.push_back(
+                FoundProblem(FoundProblem::SEVERITY::Error, "Write to nullptr array"));
+        } else {
+
+            if(auto indexNumber = std::get_if<PrimitiveInfo>(&indexVar.Value); indexNumber) {
+                if(buf->AllocatedSize <= indexNumber->AsInteger()) {
+
+                    Problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
+                        "Buffer overflow: buffer size: " + std::to_string(buf->AllocatedSize) +
+                            " used index: " + std::to_string(indexNumber->AsInteger())));
+                }
+            }
+        }
+    }
+}
+// ------------------------------------ //
 // Analyzer
 Analyzer::Analyzer(std::vector<FoundProblem>& reportProblems) : Problems(reportProblems) {}
 // ------------------------------------ //
@@ -69,7 +131,7 @@ bool Analyzer::BeginAnalysis(const CodeBlock& entryPoint,
     std::list<AnalysisOperation> toCheck;
 
     {
-        AnalysisOperation entryAnalysis(entryPoint.GetActions(), availableFunctions);
+        AnalysisOperation entryAnalysis(entryPoint.GetActions(), availableFunctions, Problems);
 
         if(!ResolveCallParameters(entryAnalysis, entryPoint, callParameters)) {
             Problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
@@ -112,17 +174,18 @@ bool Analyzer::ResolveCallParameters(AnalysisOperation& operation, const CodeBlo
     }
 
     for(size_t i = 0; i < callParameters.size(); ++i) {
-        operation.State->CreateLocal(function.GetParameters()[i], callParameters[i]);
+
+        const auto resolved = callParameters[i].Resolve(*operation.State);
+
+        operation.State->CreateLocal(function.GetParameters()[i], resolved);
     }
 
     return true;
 }
 // ------------------------------------ //
-std::tuple<bool, std::list<Analyzer::AnalysisOperation>> Analyzer::PerformAnalysisOperation(
+std::tuple<bool, std::list<AnalysisOperation>> Analyzer::PerformAnalysisOperation(
     AnalysisOperation& operation)
 {
-    std::list<AnalysisOperation> foundCalls;
-
     // TODO: when a conditional is uncertain the check needs to be split into two here to
     // independently check both uncertain outcomes
 
@@ -133,25 +196,7 @@ std::tuple<bool, std::list<Analyzer::AnalysisOperation>> Analyzer::PerformAnalys
         if(operation.State->MatchesCondition(action.If)) {
 
             std::cout << "analysis at step: " << action.Dump() << "\n";
-
-            const action::FunctionCall* func =
-                dynamic_cast<const action::FunctionCall*>(&action);
-
-            if(func) {
-
-                const CodeBlock* calledFunction =
-                    operation.AvailableFunctions->FindFunction(func->Function);
-
-                if(calledFunction) {
-
-                    AnalysisOperation newOp(
-                        calledFunction->GetActions(), operation.AvailableFunctions);
-
-                    if(ResolveCallParameters(newOp, *calledFunction, func->Params)) {
-                        foundCalls.push_back(std::move(newOp));
-                    }
-                }
-            }
+            action.Dispatch(operation);
 
         } else {
             // If the failure was due to unknown variable states execution should split here,
@@ -159,5 +204,5 @@ std::tuple<bool, std::list<Analyzer::AnalysisOperation>> Analyzer::PerformAnalys
         }
     }
 
-    return std::make_tuple(true, foundCalls);
+    return std::make_tuple(true, operation.FoundCalls);
 }

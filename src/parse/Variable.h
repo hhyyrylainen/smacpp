@@ -8,6 +8,8 @@
 
 namespace smacpp {
 
+class VariableValueProvider;
+
 struct VariableIdentifier {
     VariableIdentifier(const std::string& name) : Name(name) {}
 
@@ -45,6 +47,7 @@ public:
     PrimitiveInfo(Integer intValue) : Value(intValue) {}
 
     bool IsNonZero() const;
+    Integer AsInteger() const;
 
     std::string Dump() const;
 
@@ -88,6 +91,9 @@ public:
         State = STATE::Primitive;
         Value = primitive;
     }
+
+    //! \brief Resolves the actual value if this state is copied from a variable
+    VariableState Resolve(const VariableValueProvider& otherVariables) const;
 
     //! \brief Converts this to a 0 or 1
     //! \exception UnknownVariableStateException if unknown
