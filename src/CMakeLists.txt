@@ -6,6 +6,8 @@
 add_library(smacppcommon
   parse/CodeBlock.h
   parse/CodeBlock.cpp
+  parse/Variable.h
+  parse/Variable.cpp  
   parse/Condition.h
   parse/Condition.cpp
   parse/ProcessedAction.h

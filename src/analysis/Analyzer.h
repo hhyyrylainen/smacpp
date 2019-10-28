@@ -28,21 +28,31 @@ struct FoundProblem {
 
 //! Main class implementing the actual static analysis checks
 class Analyzer {
-    struct ProgramState {
-
+    class ProgramState : public VariableValueProvider {
+    public:
         void CreateLocal(VariableIdentifier identifier, VariableState initialState);
+
+        //! \returns True if current state matches Condition. Unknown variables are assumed to
+        //! have the wrong value
+        bool MatchesCondition(const Condition& condition) const;
+
+        VariableState GetVariableValue(const VariableIdentifier& variable) const override;
 
         std::unordered_map<VariableIdentifier, VariableState> Variables;
     };
 
     struct AnalysisOperation {
 
-        AnalysisOperation(const std::vector<std::unique_ptr<ProcessedAction>>& actions) :
-            Actions(actions), State(std::make_shared<ProgramState>())
+        AnalysisOperation(const std::vector<std::unique_ptr<ProcessedAction>>& actions,
+            const BlockRegistry* availableFunctions) :
+            Actions(actions),
+            State(std::make_shared<ProgramState>()), AvailableFunctions(availableFunctions)
         {}
 
         const std::vector<std::unique_ptr<ProcessedAction>>& Actions;
         std::shared_ptr<ProgramState> State;
+
+        const BlockRegistry* AvailableFunctions = nullptr;
     };
 
 public:
@@ -54,6 +64,9 @@ public:
     //! \param callParameters the parameters that are passed to entryPoint
     //! \returns True if analysis ran correctly. False if a fatal error was encountered
     bool BeginAnalysis(const CodeBlock& entryPoint, const BlockRegistry* availableFunctions,
+        const std::vector<VariableState>& callParameters);
+
+    bool ResolveCallParameters(AnalysisOperation& operation, const CodeBlock& function,
         const std::vector<VariableState>& callParameters);
 
 private:

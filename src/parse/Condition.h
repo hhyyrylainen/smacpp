@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Variable.h"
+
 #include <clang/AST/Stmt.h>
 
 #include <memory>
@@ -8,50 +10,30 @@
 
 namespace smacpp {
 
-struct VariableIdentifier {
-    VariableIdentifier(const std::string& name) : Name(name) {}
-
-    VariableIdentifier(clang::VarDecl* var);
-
-    std::string Dump() const
-    {
-        return Name;
-    }
-
-    //! \todo Implement proper scoping
-    std::string Name;
-};
-
-struct ValueRange {
+struct VariableValueCondition {
 public:
-    enum class RANGE_CLASS { NotZero, Zero };
-
-public:
-    ValueRange(RANGE_CLASS type) : Type(type) {}
-
-    ValueRange Negate() const;
-
-    std::string Dump() const;
-
-    RANGE_CLASS Type;
-};
-
-struct VariableValue {
-public:
-    VariableValue(const std::string& variable, ValueRange value) :
+    VariableValueCondition(const std::string& variable, ValueRange value) :
         Variable(variable), Value(value)
     {}
 
-    VariableValue(const VariableIdentifier& variable, ValueRange value) :
+    VariableValueCondition(const VariableIdentifier& variable, ValueRange value) :
         Variable(variable), Value(value)
     {}
 
-    VariableValue Negate() const;
+    VariableValueCondition Negate() const;
 
     std::string Dump() const;
 
     VariableIdentifier Variable;
     ValueRange Value;
+};
+
+//! Interface for providing variable values for evaluating a Condition
+class VariableValueProvider {
+public:
+    virtual ~VariableValueProvider() = default;
+
+    virtual VariableState GetVariableValue(const VariableIdentifier& variable) const = 0;
 };
 
 enum class COMBINE_OPERATOR { And, Or };
@@ -81,18 +63,27 @@ public:
         using CombinedParts =
             std::tuple<std::shared_ptr<Part>, COMBINE_OPERATOR, std::shared_ptr<Part>>;
 
-        Part(VariableValue value) : Value(value) {}
+        Part(VariableValueCondition value) : Value(value) {}
 
         Part(std::shared_ptr<Part> lhs, COMBINE_OPERATOR op, std::shared_ptr<Part> rhs) :
             Value(std::make_tuple(lhs, op, rhs))
         {}
+
+        bool Evaluate(const VariableValueProvider& values) const;
+
+        //! \brief Tries to detect if this is always true
+        //! \todo implement
+        bool DetectTautology() const
+        {
+            return false;
+        }
 
         Part Negate() const;
 
         std::string Dump() const;
 
         //! shared_ptrs are used here to make copying work
-        std::variant<VariableValue, CombinedParts> Value;
+        std::variant<VariableValueCondition, CombinedParts> Value;
     };
 
 
@@ -103,7 +94,9 @@ public:
 
     Condition(clang::Stmt* stmt);
 
-    Condition(const std::vector<std::tuple<Part, COMBINE_OPERATOR>>& parts);
+    Condition(const Part& part);
+
+    bool Evaluate(const VariableValueProvider& values) const;
 
     bool IsAlwaysTrue() const
     {
@@ -121,14 +114,12 @@ public:
 
     std::string Dump() const;
 
-    static bool DetectTautology(const std::vector<std::tuple<Part, COMBINE_OPERATOR>>& parts);
-
 private:
     //! \todo Add contradiction
     bool Tautology = false;
 
     //! When not a tautology the parts are stored here
-    std::vector<std::tuple<Part, COMBINE_OPERATOR>> Parts;
+    std::optional<Part> VariableConditions;
 };
 } // namespace smacpp
 

@@ -15,62 +15,72 @@ public:
     {
         if(clang::VarDecl* var = clang::dyn_cast<clang::VarDecl>(ref->getDecl()); var) {
 
-            Parts.push_back(
-                std::make_tuple(Condition::Part(VariableValue(VariableIdentifier(var),
-                                    ValueRange(ValueRange::RANGE_CLASS::NotZero))),
-                    COMBINE_OPERATOR::And));
+            if(Parts) {
+                llvm::outs() << "found multiple conditions, ConditionParseVisitor doesn't "
+                                "know how to handle this yet\n";
+            }
+
+            Parts = Condition::Part(VariableValueCondition(
+                VariableIdentifier(var), ValueRange(ValueRange::RANGE_CLASS::NotZero)));
         }
 
         return true;
     }
 
-    std::vector<std::tuple<Condition::Part, COMBINE_OPERATOR>> Parts;
+    std::optional<Condition::Part> Parts;
 };
 // ------------------------------------ //
-// VariableIdentifier
-VariableIdentifier::VariableIdentifier(clang::VarDecl* var) :
-    Name(var->getQualifiedNameAsString())
+// VariableValueCondition
+VariableValueCondition VariableValueCondition::Negate() const
 {
-    // var->getGlobalID();
-}
-// ------------------------------------ //
-// ValueRange
-ValueRange ValueRange::Negate() const
-{
-    switch(Type) {
-    case RANGE_CLASS::NotZero: return ValueRange(RANGE_CLASS::Zero);
-    case RANGE_CLASS::Zero: return ValueRange(RANGE_CLASS::NotZero);
-    }
-
-    throw std::runtime_error("negate not implemented for this ValueRange type");
+    return VariableValueCondition(Variable, Value.Negate());
 }
 
-std::string ValueRange::Dump() const
-{
-    switch(Type) {
-    case RANGE_CLASS::NotZero: return "!= 0";
-    case RANGE_CLASS::Zero: return "== 0";
-    default: return "== ?";
-    }
-}
-
-// ------------------------------------ //
-// VariableValue
-VariableValue VariableValue::Negate() const
-{
-    return VariableValue(Variable, Value.Negate());
-}
-
-std::string VariableValue::Dump() const
+std::string VariableValueCondition::Dump() const
 {
     return Variable.Dump() + " " + Value.Dump();
 }
 
 // ------------------------------------ //
 // Condition::Part
+bool Condition::Part::Evaluate(const VariableValueProvider& values) const
+{
+    if(auto value = std::get_if<VariableValueCondition>(&Value); value) {
+
+        const auto actualValue = values.GetVariableValue(value->Variable);
+
+        // TODO: somehow pass that this is unknown to the top level (maybe an exception?)
+        if(actualValue.State == VariableState::STATE::Unknown) {
+            return false;
+        }
+
+        return value->Value.Matches(actualValue);
+
+    } else if(auto combined = std::get_if<CombinedParts>(&Value); value) {
+
+        switch(std::get<1>(*combined)) {
+        case COMBINE_OPERATOR::And:
+            if(std::get<0>(*combined)->Evaluate(values) &&
+                std::get<2>(*combined)->Evaluate(values))
+                return true;
+            return false;
+        case COMBINE_OPERATOR::Or:
+            if(std::get<0>(*combined)->Evaluate(values) ||
+                std::get<2>(*combined)->Evaluate(values))
+                return true;
+            return false;
+        }
+
+        throw std::runtime_error("unimplemented combine operator in Evaluate");
+
+    } else {
+        throw std::runtime_error("evaluate not implemented for this variant type");
+    }
+}
+// ------------------------------------ //
 Condition::Part Condition::Part::Negate() const
 {
-    if(auto value = std::get_if<VariableValue>(&Value); value) {
+    if(auto value = std::get_if<VariableValueCondition>(&Value); value) {
 
         return Part(value->Negate());
 
@@ -85,7 +95,7 @@ Condition::Part Condition::Part::Negate() const
 
 std::string Condition::Part::Dump() const
 {
-    if(auto value = std::get_if<VariableValue>(&Value); value) {
+    if(auto value = std::get_if<VariableValueCondition>(&Value); value) {
 
         return value->Dump();
 
@@ -110,22 +120,31 @@ Condition::Condition(clang::Stmt* stmt)
     ConditionParseVisitor visitor;
     visitor.TraverseStmt(stmt);
 
-    if(DetectTautology(visitor.Parts)) {
+    if(!visitor.Parts || visitor.Parts->DetectTautology()) {
 
         Tautology = true;
     } else {
 
-        Parts = std::move(visitor.Parts);
+        VariableConditions = std::move(visitor.Parts);
     }
 }
 
-Condition::Condition(const std::vector<std::tuple<Part, COMBINE_OPERATOR>>& parts) :
-    Parts(parts)
+Condition::Condition(const Part& part)
 {
-    Tautology = DetectTautology(Parts);
+    if(part.DetectTautology()) {
+        Tautology = true;
+    } else {
 
-    if(Tautology)
-        Parts.clear();
+        VariableConditions = part;
+    }
+}
+// ------------------------------------ //
+bool Condition::Evaluate(const VariableValueProvider& values) const
+{
+    if(IsAlwaysTrue())
+        return true;
+
+    return VariableConditions->Evaluate(values);
 }
 // ------------------------------------ //
 Condition Condition::Negate() const
@@ -136,15 +155,7 @@ Condition Condition::Negate() const
         return opposite;
     }
 
-    decltype(Parts) negatedParts;
-
-    for(const auto& part : Parts) {
-
-        negatedParts.push_back(std::make_tuple(
-            std::get<0>(part).Negate(), NegateCombineOperator(std::get<1>(part))));
-    }
-
-    return Condition(negatedParts);
+    return Condition(VariableConditions->Negate());
 }
 
 Condition Condition::And(const Condition& other) const
@@ -155,18 +166,12 @@ Condition Condition::And(const Condition& other) const
         return combined;
     }
 
-    decltype(Parts) combinedParts;
-
-    // TODO: make this combine the conditions properly
-    for(const auto& part : Parts) {
-        combinedParts.push_back(part);
+    if(Tautology) {
+        return Condition(*other.VariableConditions);
     }
 
-    for(const auto& part : other.Parts) {
-        combinedParts.push_back(part);
-    }
-
-    return Condition(combinedParts);
+    return Condition(Part(std::make_shared<Part>(*VariableConditions), COMBINE_OPERATOR::And,
+        std::make_shared<Part>(*other.VariableConditions)));
 }
 // ------------------------------------ //
 std::string Condition::Dump() const
@@ -174,26 +179,8 @@ std::string Condition::Dump() const
     if(Tautology)
         return "tautology";
 
-    std::stringstream sstream;
+    if(!VariableConditions)
+        return "invalid";
 
-    bool first = true;
-
-    for(const auto& part : Parts) {
-
-        if(first)
-            sstream << " ";
-
-        first = false;
-        sstream << "(" << CombineOperatorToString(std::get<1>(part)) << " "
-                << std::get<0>(part).Dump() << ")";
-    }
-
-    return sstream.str();
-}
-// ------------------------------------ //
-bool Condition::DetectTautology(const std::vector<std::tuple<Part, COMBINE_OPERATOR>>& parts)
-{
-    if(parts.empty())
-        return true;
-    return false;
+    return VariableConditions->Dump();
 }

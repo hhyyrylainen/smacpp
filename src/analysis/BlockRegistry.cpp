@@ -39,3 +39,13 @@ std::vector<FoundProblem> BlockRegistry::PerformAnalysis() const
 
     return problems;
 }
+// ------------------------------------ //
+const CodeBlock* BlockRegistry::FindFunction(const std::string& name) const
+{
+    const auto found = FunctionBlocks.find(name);
+
+    if(found == FunctionBlocks.end())
+        return nullptr;
+
+    return &found->second;
+}

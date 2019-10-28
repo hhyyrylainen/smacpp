@@ -14,6 +14,8 @@ public:
     //! \brief Adds a block to this registry
     void AddBlock(CodeBlock&& block);
 
+    const CodeBlock* FindFunction(const std::string& name) const;
+
     //! \brief Performs the static analysis starting from "main" and other good candidate
     //! functions
     std::vector<FoundProblem> PerformAnalysis() const;

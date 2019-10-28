@@ -1,73 +1,11 @@
 #pragma once
 
 #include "Condition.h"
+#include "Variable.h"
 
 #include <sstream>
-#include <variant>
 
 namespace smacpp {
-
-struct BufferInfo {
-public:
-    BufferInfo(std::nullptr_t) : NullPtr(true) {}
-    BufferInfo(size_t size) : AllocatedSize(size) {}
-
-    std::string Dump() const;
-
-    bool NullPtr = false;
-    size_t AllocatedSize = 0;
-};
-
-struct PrimitiveInfo {
-public:
-    using Integer = long long;
-
-    PrimitiveInfo(Integer intValue) : Value(intValue) {}
-
-    std::string Dump() const;
-
-    std::variant<bool, Integer, double> Value;
-};
-
-struct VarCopyInfo {
-    VarCopyInfo(VariableIdentifier source) : Source(source) {}
-
-    std::string Dump() const;
-
-    VariableIdentifier Source;
-};
-
-class VariableState {
-public:
-    enum class STATE { Unknown, Primitive, Buffer, CopyVar };
-
-    //! Sets from a buffer
-    void Set(BufferInfo buffer)
-    {
-        State = STATE::Buffer;
-        Value = buffer;
-    }
-
-    //! Copied from another var
-    void Set(VarCopyInfo copyInfo)
-    {
-        State = STATE::CopyVar;
-        Value = copyInfo;
-    }
-
-    //! Sets from a known primitive value
-    void Set(PrimitiveInfo primitive)
-    {
-        State = STATE::Primitive;
-        Value = primitive;
-    }
-
-    std::string Dump() const;
-
-    STATE State = STATE::Unknown;
-
-    std::variant<std::monostate, BufferInfo, PrimitiveInfo, VarCopyInfo> Value;
-};
 
 //! \brief Some action the program takes that is relevant for static analysis
 class ProcessedAction {

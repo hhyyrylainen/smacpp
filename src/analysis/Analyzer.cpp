@@ -1,7 +1,9 @@
 // ------------------------------------ //
 #include "Analyzer.h"
 
+#include "BlockRegistry.h"
 #include "parse/CodeBlock.h"
+#include "parse/ProcessedAction.h"
 
 #include <sstream>
 
@@ -29,6 +31,35 @@ std::string FoundProblem::FormatAsString() const
     return sstream.str();
 }
 // ------------------------------------ //
+// Analyzer::ProgramState
+void Analyzer::ProgramState::CreateLocal(
+    VariableIdentifier identifier, VariableState initialState)
+{
+    // TODO: allow shadowing globals and locals defined in upper scope
+    Variables[identifier] = initialState;
+}
+// ------------------------------------ //
+bool Analyzer::ProgramState::MatchesCondition(const Condition& condition) const
+{
+    return condition.Evaluate(*this);
+}
+
+VariableState Analyzer::ProgramState::GetVariableValue(
+    const VariableIdentifier& variable) const
+{
+    const auto found = Variables.find(variable);
+
+    if(found == Variables.end()) {
+        return VariableState();
+    }
+
+    // TODO: resolve copyvar
+    if(found->second.State == VariableState::STATE::CopyVar) {
+    }
+
+    return found->second;
+}
+// ------------------------------------ //
 // Analyzer
 Analyzer::Analyzer(std::vector<FoundProblem>& reportProblems) : Problems(reportProblems) {}
 // ------------------------------------ //
@@ -38,17 +69,12 @@ bool Analyzer::BeginAnalysis(const CodeBlock& entryPoint,
     std::list<AnalysisOperation> toCheck;
 
     {
-        AnalysisOperation entryAnalysis(entryPoint.GetActions());
+        AnalysisOperation entryAnalysis(entryPoint.GetActions(), availableFunctions);
 
-        if(callParameters.size() != entryPoint.GetParameters().size()) {
-
+        if(!ResolveCallParameters(entryAnalysis, entryPoint, callParameters)) {
             Problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
                 "given parameters count mismatches analysis entrypoint parameter count"));
             return false;
-        }
-
-        for(size_t i = 0; i < callParameters.size(); ++i) {
-            entryAnalysis.State->CreateLocal(entryPoint.GetParameters()[i], callParameters[i]);
         }
 
         toCheck.push_back(std::move(entryAnalysis));
@@ -78,6 +104,20 @@ bool Analyzer::BeginAnalysis(const CodeBlock& entryPoint,
     return true;
 }
 // ------------------------------------ //
+bool Analyzer::ResolveCallParameters(AnalysisOperation& operation, const CodeBlock& function,
+    const std::vector<VariableState>& callParameters)
+{
+    if(callParameters.size() != function.GetParameters().size()) {
+        return false;
+    }
+
+    for(size_t i = 0; i < callParameters.size(); ++i) {
+        operation.State->CreateLocal(function.GetParameters()[i], callParameters[i]);
+    }
+
+    return true;
+}
+// ------------------------------------ //
 std::tuple<bool, std::list<Analyzer::AnalysisOperation>> Analyzer::PerformAnalysisOperation(
     AnalysisOperation& operation)
 {
@@ -90,7 +130,33 @@ std::tuple<bool, std::list<Analyzer::AnalysisOperation>> Analyzer::PerformAnalys
 
         const ProcessedAction& action = **iter;
 
-        std::cout << "analysis at step: " << action.Dump() << "\n";
+        if(operation.State->MatchesCondition(action.If)) {
+
+            std::cout << "analysis at step: " << action.Dump() << "\n";
+
+            const action::FunctionCall* func =
+                dynamic_cast<const action::FunctionCall*>(&action);
+
+            if(func) {
+
+                const CodeBlock* calledFunction =
+                    operation.AvailableFunctions->FindFunction(func->Function);
+
+                if(calledFunction) {
+
+                    AnalysisOperation newOp(
+                        calledFunction->GetActions(), operation.AvailableFunctions);
+
+                    if(ResolveCallParameters(newOp, *calledFunction, func->Params)) {
+                        foundCalls.push_back(std::move(newOp));
+                    }
+                }
+            }
+
+        } else {
+            // If the failure was due to unknown variable states execution should split here,
+            // see the TODO above
+        }
     }
 
     return std::make_tuple(true, foundCalls);
