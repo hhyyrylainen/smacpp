@@ -13,8 +13,10 @@
 using namespace smacpp;
 // ------------------------------------ //
 // FoundProblem
-FoundProblem::FoundProblem(SEVERITY severity, const std::string& message) :
-    Severity(severity), Message(message)
+FoundProblem::FoundProblem(
+    SEVERITY severity, const std::string& message, clang::SourceLocation loc) :
+    Severity(severity),
+    Message(message), Location(loc)
 {}
 // ------------------------------------ //
 std::string FoundProblem::FormatAsString() const
@@ -28,6 +30,7 @@ std::string FoundProblem::FormatAsString() const
     }
 
     sstream << " " << Message;
+    // TODO: printing Location here needs a clang SourceManager reference
     return sstream.str();
 }
 // ------------------------------------ //
@@ -63,6 +66,47 @@ VariableState ProgramState::GetVariableValue(const VariableIdentifier& variable)
     return found->second;
 }
 // ------------------------------------ //
+// DoneAnalysisRegistry
+bool DoneAnalysisRegistry::HasBeenDone(
+    const CodeBlock* func, const std::vector<VariableState>& params)
+{
+    const auto found = RecordedFunctionCalls.find(func->GetName());
+
+    if(found == RecordedFunctionCalls.end()) {
+        return false;
+    }
+
+    for(const auto& paramSet : found->second) {
+
+        if(params == paramSet)
+            return true;
+    }
+
+    return false;
+}
+
+void DoneAnalysisRegistry::Add(const CodeBlock* func, const std::vector<VariableState>& params)
+{
+    const auto existing = RecordedFunctionCalls.find(func->GetName());
+
+    if(existing == RecordedFunctionCalls.end()) {
+        RecordedFunctionCalls[func->GetName()] = {params};
+    } else {
+        existing->second.push_back(params);
+    }
+}
+
+bool DoneAnalysisRegistry::CheckAndAdd(
+    const CodeBlock* func, const std::vector<VariableState>& params)
+{
+    if(HasBeenDone(func, params))
+        return false;
+
+    Add(func, params);
+    return true;
+}
+
+// ------------------------------------ //
 // AnalysisOperation
 void AnalysisOperation::HandleAction(const action::FunctionCall* call)
 {
@@ -70,10 +114,21 @@ void AnalysisOperation::HandleAction(const action::FunctionCall* call)
 
     if(calledFunction) {
 
-        AnalysisOperation newOp(calledFunction->GetActions(), AvailableFunctions, Problems);
+        // if(calledFunction == CurrentFunction) {
+        //     // TODO: add proper handling for recursion
+        //     return;
+        // }
+
+        AnalysisOperation newOp(
+            calledFunction->GetActions(), AvailableFunctions, Problems, DoneOperations);
+        newOp.CurrentFunction = calledFunction;
 
         if(Analyzer::ResolveCallParameters(newOp, *calledFunction, call->Params)) {
-            FoundCalls.push_back(std::move(newOp));
+
+            // TODO: this should be moved to use the resolved parameters
+            if(DoneOperations.CheckAndAdd(calledFunction, call->Params)) {
+                FoundCalls.push_back(std::move(newOp));
+            }
         }
     }
 }
@@ -106,8 +161,8 @@ void AnalysisOperation::HandleAction(const action::ArrayIndexAccess* index)
 
         // TODO: emit line numbers
         if(buf->NullPtr) {
-            Problems.push_back(
-                FoundProblem(FoundProblem::SEVERITY::Error, "Write to nullptr array"));
+            Problems.push_back(FoundProblem(
+                FoundProblem::SEVERITY::Error, "Write to nullptr array", index->Location));
         } else {
 
             if(auto indexNumber = std::get_if<PrimitiveInfo>(&indexVar.Value); indexNumber) {
@@ -115,7 +170,8 @@ void AnalysisOperation::HandleAction(const action::ArrayIndexAccess* index)
 
                     Problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
                         "Buffer overflow: buffer size: " + std::to_string(buf->AllocatedSize) +
-                            " used index: " + std::to_string(indexNumber->AsInteger())));
+                            " used index: " + std::to_string(indexNumber->AsInteger()),
+                        index->Location));
                 }
             }
         }
@@ -131,15 +187,20 @@ bool Analyzer::BeginAnalysis(const CodeBlock& entryPoint,
     std::list<AnalysisOperation> toCheck;
 
     {
-        AnalysisOperation entryAnalysis(entryPoint.GetActions(), availableFunctions, Problems);
+        AnalysisOperation entryAnalysis(
+            entryPoint.GetActions(), availableFunctions, Problems, AlreadyQueuedOps);
+        entryAnalysis.CurrentFunction = &entryPoint;
 
         if(!ResolveCallParameters(entryAnalysis, entryPoint, callParameters)) {
             Problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
-                "given parameters count mismatches analysis entrypoint parameter count"));
+                "given parameters count mismatches analysis entrypoint parameter count",
+                entryPoint.GetLocation()));
             return false;
         }
 
         toCheck.push_back(std::move(entryAnalysis));
+        // TODO: this should be moved to use the resolved parameters
+        AlreadyQueuedOps.Add(&entryPoint, callParameters);
     }
 
     while(!toCheck.empty()) {
@@ -147,8 +208,8 @@ bool Analyzer::BeginAnalysis(const CodeBlock& entryPoint,
         const auto result = PerformAnalysisOperation(toCheck.front());
 
         if(!std::get<0>(result)) {
-            Problems.push_back(
-                FoundProblem(FoundProblem::SEVERITY::Error, "an analysis step failed"));
+            Problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
+                "an analysis step failed", clang::SourceLocation{}));
             return false;
         }
 

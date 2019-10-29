@@ -25,6 +25,8 @@ protected:
 public:
     //! Action is taken when this condition is true
     const Condition If;
+    //! This is not const to reduce the constructor param count
+    clang::SourceLocation Location;
 };
 
 namespace action {

@@ -26,15 +26,15 @@ std::vector<FoundProblem> BlockRegistry::PerformAnalysis() const
 
         if(!analyzer.BeginAnalysis(mainIter->second, this, {})) {
 
-            problems.push_back(FoundProblem(
-                FoundProblem::SEVERITY::Error, "Analysis encountered a fatal error"));
+            problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
+                "Analysis encountered a fatal error", mainIter->second.GetLocation()));
         }
 
     } else {
         // TODO: this should only be a warning / info if some other function that could be
         // started from is found
-        problems.push_back(
-            FoundProblem(FoundProblem::SEVERITY::Error, "'main' function was not found"));
+        problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
+            "'main' function was not found", clang::SourceLocation{}));
     }
 
     return problems;

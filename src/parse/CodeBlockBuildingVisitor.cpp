@@ -188,7 +188,8 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitVarDecl(clang::VarDecl* var)
     //     ":"
     //                  << fullLocation.getSpellingColumnNumber() << "\n";
     Target.AddProcessedAction(std::make_unique<action::VarDeclared>(
-        GetCurrentCondition(), VariableIdentifier(var), state));
+                                  GetCurrentCondition(), VariableIdentifier(var), state),
+        fullLocation);
 
     return true;
 }
@@ -261,7 +262,8 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitArraySubscriptExpr(
 
     if(indexValue.State != VariableState::STATE::Unknown) {
         Target.AddProcessedAction(std::make_unique<action::ArrayIndexAccess>(
-            GetCurrentCondition(), *lhsVisitor.FoundVar, indexValue));
+                                      GetCurrentCondition(), *lhsVisitor.FoundVar, indexValue),
+            Context.getFullLoc(expr->getBeginLoc()));
     }
 
     return true;
@@ -288,8 +290,11 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitBinaryOperator(clang::Binary
         VariableState state;
         state.Set(*rhsVisitor.FoundVar);
 
+        // TODO: the location here is not fully accurate, the sub visitor needs to store the
+        // accurate location
         Target.AddProcessedAction(std::make_unique<action::VarAssigned>(
-            GetCurrentCondition(), *lhsVisitor.FoundVar, state));
+                                      GetCurrentCondition(), *lhsVisitor.FoundVar, state),
+            Context.getFullLoc(op->getBeginLoc()));
     }
 
     return true;
@@ -323,9 +328,9 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseCallExpr(clang::CallExpr*
         }
     }
 
-
     Target.AddProcessedAction(std::make_unique<action::FunctionCall>(
-        GetCurrentCondition(), functionName, callParams));
+                                  GetCurrentCondition(), functionName, callParams),
+        Context.getFullLoc(call->getBeginLoc()));
 
     return true;
 }
@@ -339,7 +344,7 @@ CodeBlockBuildingVisitor::CodeBlockBuildingVisitor(
 // ------------------------------------ //
 bool CodeBlockBuildingVisitor::TraverseFunctionDecl(clang::FunctionDecl* fun)
 {
-    CodeBlock block(fun->getQualifiedNameAsString());
+    CodeBlock block(fun->getQualifiedNameAsString(), Context.getFullLoc(fun->getBeginLoc()));
     // This is split in two to easily detect the function end
 
     FunctionVisitor Visitor(Context, block);

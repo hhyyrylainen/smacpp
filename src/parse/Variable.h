@@ -36,6 +36,11 @@ public:
 
     std::string Dump() const;
 
+    bool operator==(const BufferInfo& other) const
+    {
+        return NullPtr == other.NullPtr && AllocatedSize == other.AllocatedSize;
+    }
+
     bool NullPtr = false;
     size_t AllocatedSize = 0;
 };
@@ -51,6 +56,11 @@ public:
 
     std::string Dump() const;
 
+    bool operator==(const PrimitiveInfo& other) const
+    {
+        return Value == other.Value;
+    }
+
     std::variant<bool, Integer, double> Value;
 };
 
@@ -58,6 +68,11 @@ struct VarCopyInfo {
     VarCopyInfo(VariableIdentifier source) : Source(source) {}
 
     std::string Dump() const;
+
+    bool operator==(const VarCopyInfo& other) const
+    {
+        return Source == other.Source;
+    }
 
     VariableIdentifier Source;
 };
@@ -100,6 +115,11 @@ public:
     int ToZeroOrNonZero() const;
 
     std::string Dump() const;
+
+    bool operator==(const VariableState& other) const
+    {
+        return State == other.State && Value == other.Value;
+    }
 
     STATE State = STATE::Unknown;
 

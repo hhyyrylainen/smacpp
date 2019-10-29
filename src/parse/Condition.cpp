@@ -56,7 +56,7 @@ bool Condition::Part::Evaluate(const VariableValueProvider& values) const
 
         return value->Value.Matches(actualValue);
 
-    } else if(auto combined = std::get_if<CombinedParts>(&Value); value) {
+    } else if(auto combined = std::get_if<CombinedParts>(&Value); combined) {
 
         switch(std::get<1>(*combined)) {
         case COMBINE_OPERATOR::And:

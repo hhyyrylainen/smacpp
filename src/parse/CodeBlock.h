@@ -10,15 +10,20 @@ namespace smacpp {
 //! Represents a block of source code that has properties extracted from it
 class CodeBlock {
 public:
-    CodeBlock(const std::string& qualifiedName) : Name(qualifiedName) {}
+    CodeBlock(const std::string& qualifiedName, clang::SourceLocation location) :
+        Name(qualifiedName), Location(location)
+    {}
 
     //! \brief All potentially unsafe calls, and variable state changes are added through this
     //!
     //! Everything is bunched together like this in order to be able to determine the variable
     //! states at the potentially unsafe operations in order to verify the conditions under
     //! which they are unsafe
-    void AddProcessedAction(std::unique_ptr<ProcessedAction>&& action)
+    void AddProcessedAction(std::unique_ptr<ProcessedAction>&& action,
+        clang::SourceLocation location = clang::SourceLocation{})
     {
+        if(location.isValid())
+            action->Location = location;
         Actions.push_back(std::move(action));
     }
 
@@ -48,8 +53,15 @@ public:
 
     std::string Dump() const;
 
+    const auto GetLocation() const
+    {
+        return Location;
+    }
+
 private:
     std::string Name;
+    clang::SourceLocation Location;
+
     //! \todo Find default values
     std::vector<VariableIdentifier> FunctionParameters;
 

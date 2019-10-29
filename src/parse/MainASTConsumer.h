@@ -10,5 +10,11 @@ public:
     MainASTConsumer() = default;
 
     virtual void HandleTranslationUnit(clang::ASTContext& Context);
+
+protected:
+    void RegisterDiagnostics(clang::DiagnosticsEngine& de);
+
+protected:
+    unsigned SMACPPErrorId;
 };
 } // namespace smacpp

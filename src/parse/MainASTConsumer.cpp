@@ -8,6 +8,10 @@ using namespace smacpp;
 // ------------------------------------ //
 void MainASTConsumer::HandleTranslationUnit(clang::ASTContext& Context)
 {
+    clang::DiagnosticsEngine& de = Context.getDiagnostics();
+
+    RegisterDiagnostics(de);
+
     BlockRegistry registry;
     CodeBlockBuildingVisitor visitor(Context, registry);
 
@@ -20,14 +24,17 @@ void MainASTConsumer::HandleTranslationUnit(clang::ASTContext& Context)
     // CodeBlocks loaded
     const auto errors = registry.PerformAnalysis();
 
-    // TODO: ignore info messages in this count
-    if(!errors.empty()) {
-        llvm::errs() << "SMACPP found " << errors.size() << " errors"
-                     << "\n";
-
-        // TODO: use the proper clang error output mechanism
-        for(const auto& error : errors) {
-            llvm::errs() << error.FormatAsString() << "\n";
+    for(const auto& error : errors) {
+        if(error.Severity == FoundProblem::SEVERITY::Error) {
+            de.Report(error.Location, SMACPPErrorId).AddString(error.Message);
+        } else {
+            // TODO: use the proper clang error output mechanism
+            llvm::errs() << "smacpp: " << error.FormatAsString() << "\n";
         }
     }
+}
+// ------------------------------------ //
+void MainASTConsumer::RegisterDiagnostics(clang::DiagnosticsEngine& de)
+{
+    SMACPPErrorId = de.getCustomDiagID(clang::DiagnosticsEngine::Error, "%0");
 }

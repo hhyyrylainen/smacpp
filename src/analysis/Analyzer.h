@@ -2,6 +2,7 @@
 
 #include "parse/ProcessedAction.h"
 
+#include <clang/Basic/SourceLocation.h>
 
 #include <list>
 #include <string>
@@ -17,10 +18,11 @@ struct FoundProblem {
     enum class SEVERITY { Info, Warning, Error };
 
     //! Basic message with no location info
-    FoundProblem(SEVERITY severity, const std::string& message);
+    FoundProblem(SEVERITY severity, const std::string& message, clang::SourceLocation loc);
 
     std::string FormatAsString() const;
 
+    clang::SourceLocation Location;
     std::string Message;
     SEVERITY Severity;
 };
@@ -40,14 +42,30 @@ public:
     std::unordered_map<VariableIdentifier, VariableState> Variables;
 };
 
+//! Makes sure each codeblock is not analysed multiple times
+class DoneAnalysisRegistry {
+public:
+    bool HasBeenDone(const CodeBlock* func, const std::vector<VariableState>& params);
+    void Add(const CodeBlock* func, const std::vector<VariableState>& params);
+
+    //! \brief Adds a call to the registry if it wasn't already added
+    //! \returns True if the func call was not in the registry and was added
+    bool CheckAndAdd(const CodeBlock* func, const std::vector<VariableState>& params);
+
+protected:
+    std::unordered_map<std::string, std::vector<std::vector<VariableState>>>
+        RecordedFunctionCalls;
+};
+
 //! A single operation the analysis is split into
 class AnalysisOperation {
 public:
     AnalysisOperation(const std::vector<std::unique_ptr<ProcessedAction>>& actions,
-        const BlockRegistry* availableFunctions, std::vector<FoundProblem>& reportProblems) :
+        const BlockRegistry* availableFunctions, std::vector<FoundProblem>& reportProblems,
+        DoneAnalysisRegistry& doneOps) :
         Actions(actions),
         State(std::make_shared<ProgramState>()), AvailableFunctions(availableFunctions),
-        Problems(reportProblems)
+        Problems(reportProblems), DoneOperations(doneOps)
     {}
 
     // Double dispatch
@@ -65,8 +83,11 @@ public:
 
     std::list<AnalysisOperation> FoundCalls;
 
+    //! Used for recursion detection
+    const CodeBlock* CurrentFunction = nullptr;
     const BlockRegistry* AvailableFunctions = nullptr;
     std::vector<FoundProblem>& Problems;
+    DoneAnalysisRegistry& DoneOperations;
 };
 
 //! Main class implementing the actual static analysis checks
@@ -91,6 +112,7 @@ private:
 
 private:
     std::vector<FoundProblem>& Problems;
+    DoneAnalysisRegistry AlreadyQueuedOps;
 };
 
 } // namespace smacpp
