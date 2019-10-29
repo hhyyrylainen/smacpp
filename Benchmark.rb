@@ -7,12 +7,13 @@ require 'fileutils'
 
 $results = {}
 
-SMACPP_PATH = 'build/src/libsmacpp-clang-analyzer.so'.freeze
+SMACPP_PATH = 'build/src/smacpp'.freeze
 
 FileUtils.mkdir_p 'temp'
 
 def run_process(*args)
   Dir.chdir 'temp' do
+    # puts "command: #{args.join ' '}"
     stdout, stderr, status = Open3.capture3(*args)
     [stdout, stderr, status.exitstatus]
   end
@@ -27,10 +28,10 @@ def single_clang_run(compiler_options, file)
   error_count = 0
   warning_count = 0
 
-  if (match = stderr.match(/(\d+)\s+error\sgenerated/i))
+  if (match = stderr.match(/(\d+)\s+errors?\sgenerated/i))
     error_count = match.captures[0].to_i
   end
-  if (match = stderr.match(/(\d+)\s+warning\sgenerated/i))
+  if (match = stderr.match(/(\d+)\s+warnings?\sgenerated/i))
     warning_count = match.captures[0].to_i
   end
 
@@ -46,18 +47,17 @@ end
 def single_smacpp_run(compiler_options, file)
   raise 'smacpp analyzer plugin missing' unless File.exist? SMACPP_PATH
 
-  stdout, stderr, status =
-    run_process 'clang', '--analyze', *compiler_options, file,
-                '-Xclang', '-load', '-Xclang', File.absolute_path(SMACPP_PATH),
-                '-Xclang', '-analyzer-checker=smacpp.All'
+  stdout, stderr, status = run_process File.realpath(SMACPP_PATH),
+                                       *compiler_options, file
+  # , '-o', '/dev/null'
 
   error_count = 0
   warning_count = 0
 
-  if (match = stderr.match(/(\d+)\s+error\sgenerated/i))
+  if (match = stderr.match(/(\d+)\s+errors?\sgenerated/i))
     error_count = match.captures[0].to_i
   end
-  if (match = stderr.match(/(\d+)\s+warning\sgenerated/i))
+  if (match = stderr.match(/(\d+)\s+warnings?\sgenerated/i))
     warning_count = match.captures[0].to_i
   end
 
@@ -200,13 +200,15 @@ File.write 'results.json', JSON.pretty_generate($results)
 
 File.open('results_table.tex', 'w') do |file|
   $results.each do |key, value|
-    smacpp = '-'
+    smacpp = value[:smacpp][:success]
     clang_success = value[:clang][:success]
     sanitized_key = key.gsub('_', '\_').tr('/', ' ')
 
     failure = value[:clang][:failure_type] unless clang_success
 
-    combined_result = clang_success
+    combined_result = clang_success || smacpp
+
+    failure = '' if combined_result
 
     failure = '' if combined_result
 
