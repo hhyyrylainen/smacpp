@@ -49,7 +49,7 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
     class FunctionVisitor;
 
 public:
-    CodeBlockBuildingVisitor(clang::ASTContext& context, BlockRegistry& registry);
+    CodeBlockBuildingVisitor(clang::ASTContext& context, BlockRegistry& registry, bool debug);
 
     // TODO: remove, example code
     bool VisitCXXRecordDecl(clang::CXXRecordDecl* Declaration)
@@ -74,6 +74,7 @@ public:
 private:
     clang::ASTContext& Context;
     BlockRegistry& Registry;
+    bool Debug;
 };
 
 } // namespace smacpp

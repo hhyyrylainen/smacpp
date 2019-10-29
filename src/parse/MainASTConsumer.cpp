@@ -13,7 +13,7 @@ void MainASTConsumer::HandleTranslationUnit(clang::ASTContext& Context)
     RegisterDiagnostics(de);
 
     BlockRegistry registry;
-    CodeBlockBuildingVisitor visitor(Context, registry);
+    CodeBlockBuildingVisitor visitor(Context, registry, DebugPrint);
 
     // Traversing the translation unit decl via a RecursiveASTVisitor
     // will visit all nodes in the AST.

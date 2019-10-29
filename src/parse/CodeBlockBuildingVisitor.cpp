@@ -337,9 +337,9 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseCallExpr(clang::CallExpr*
 // ------------------------------------ //
 // CodeBlockBuildingVisitor
 CodeBlockBuildingVisitor::CodeBlockBuildingVisitor(
-    clang::ASTContext& context, BlockRegistry& registry) :
+    clang::ASTContext& context, BlockRegistry& registry, bool debug) :
     Context(context),
-    Registry(registry)
+    Registry(registry), Debug(debug)
 {}
 // ------------------------------------ //
 bool CodeBlockBuildingVisitor::TraverseFunctionDecl(clang::FunctionDecl* fun)
@@ -350,7 +350,8 @@ bool CodeBlockBuildingVisitor::TraverseFunctionDecl(clang::FunctionDecl* fun)
     FunctionVisitor Visitor(Context, block);
     Visitor.TraverseDecl(fun);
 
-    llvm::outs() << "completed block: " << block.Dump() << "\n";
+    if(Debug)
+        llvm::outs() << "completed block: " << block.Dump() << "\n";
 
     Registry.AddBlock(std::move(block));
     return true;

@@ -7,7 +7,7 @@ namespace smacpp {
 
 class MainASTConsumer : public clang::ASTConsumer {
 public:
-    MainASTConsumer() = default;
+    MainASTConsumer(bool debugPrint) : DebugPrint(debugPrint) {}
 
     virtual void HandleTranslationUnit(clang::ASTContext& Context);
 
@@ -16,5 +16,6 @@ protected:
 
 protected:
     unsigned SMACPPErrorId;
+    bool DebugPrint;
 };
 } // namespace smacpp

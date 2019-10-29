@@ -14,7 +14,7 @@ test: cmake
 	$(MAKE) -C build test
 
 clang_plugin_run: compile
-	build/src/smacpp -I test/data/JM2018TS/strings/overflow test/data/JM2018TS/strings/overflow/test_incorrect/01_simple_if.c -o /dev/null
+	build/src/smacpp -Xclang -plugin-arg-smacpp -Xclang -smacpp-debug -I test/data/JM2018TS/strings/overflow test/data/JM2018TS/strings/overflow/test_incorrect/01_simple_if.c -o /dev/null
 
 analyzer_plugin_run: compile
 	clang --analyze -I test/data/JM2018TS/strings/overflow test/data/JM2018TS/strings/overflow/test_incorrect/01_simple_if.c -o /dev/null -Xclang -load -Xclang build/src/libsmacpp-clang-analyzer.so -Xclang -analyzer-checker=smacpp.All
