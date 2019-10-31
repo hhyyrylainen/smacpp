@@ -256,7 +256,8 @@ std::tuple<bool, std::list<AnalysisOperation>> Analyzer::PerformAnalysisOperatio
 
         if(operation.State->MatchesCondition(action.If)) {
 
-            std::cout << "analysis at step: " << action.Dump() << "\n";
+            if(Debug)
+                std::cout << "analysis at step: " << action.Dump() << "\n";
             action.Dispatch(operation);
 
         } else {

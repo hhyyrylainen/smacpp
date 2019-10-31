@@ -19,7 +19,7 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
 
     class ValueVisitBase {
     public:
-        ValueVisitBase(clang::ASTContext& context, CodeBlock& target);
+        ValueVisitBase(clang::ASTContext& context, CodeBlock& target, bool debug);
 
         bool VisitVarDecl(clang::VarDecl* var);
 
@@ -40,6 +40,8 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
         clang::ASTContext& Context;
 
         CodeBlock& Target;
+
+        bool Debug;
     };
 
     //! \brief Visits stuff under an if statement to take conditions into account

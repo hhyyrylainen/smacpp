@@ -13,7 +13,7 @@ void BlockRegistry::AddBlock(CodeBlock&& block)
     FunctionBlocks.insert_or_assign(block.GetName(), std::move(block));
 }
 // ------------------------------------ //
-std::vector<FoundProblem> BlockRegistry::PerformAnalysis() const
+std::vector<FoundProblem> BlockRegistry::PerformAnalysis(bool debug) const
 {
     std::vector<FoundProblem> problems;
 
@@ -23,6 +23,7 @@ std::vector<FoundProblem> BlockRegistry::PerformAnalysis() const
 
         // TODO: detect needing argc and argv
         Analyzer analyzer(problems);
+        analyzer.SetDebug(debug);
 
         if(!analyzer.BeginAnalysis(mainIter->second, this, {})) {
 

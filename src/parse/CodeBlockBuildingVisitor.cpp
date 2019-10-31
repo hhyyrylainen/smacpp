@@ -12,22 +12,25 @@ using namespace smacpp;
 class CodeBlockBuildingVisitor::VariableRefOrArrayVisitor
     : public clang::RecursiveASTVisitor<VariableRefOrArrayVisitor> {
 public:
+    VariableRefOrArrayVisitor(bool debug) : Debug(debug) {}
+
     bool VisitDeclRefExpr(clang::DeclRefExpr* expr)
     {
         if(clang::VarDecl* var = clang::dyn_cast<clang::VarDecl>(expr->getDecl()); var) {
 
             VariableIdentifier ident(var);
 
-            llvm::outs() << "found var reference: " << ident.Dump() << "\n";
+            if(Debug)
+                llvm::outs() << "found var reference: " << ident.Dump() << "\n";
 
             if(LikelyFullVariableAssign) {
                 FoundVar = ident;
             }
 
         } else {
-            llvm::outs() << "found unknown reference\n";
+            if(Debug)
+                llvm::outs() << "found unknown reference\n";
         }
-
 
         return true;
     }
@@ -42,6 +45,7 @@ public:
 
 private:
     bool LikelyFullVariableAssign = true;
+    bool Debug;
 };
 
 
@@ -99,8 +103,10 @@ class CodeBlockBuildingVisitor::ConditionalContentVisitor
     : public clang::RecursiveASTVisitor<ConditionalContentVisitor>,
       public ValueVisitBase {
 public:
-    ConditionalContentVisitor(Condition cond, clang::ASTContext& context, CodeBlock& target) :
-        ValueVisitBase(context, target), Cond(cond)
+    ConditionalContentVisitor(
+        Condition cond, clang::ASTContext& context, CodeBlock& target, bool debug) :
+        ValueVisitBase(context, target, debug),
+        Cond(cond)
     {}
 
     VALUE_VISITOR_VISIT_TYPES;
@@ -119,8 +125,8 @@ class CodeBlockBuildingVisitor::FunctionVisitor
     : public clang::RecursiveASTVisitor<FunctionVisitor>,
       public ValueVisitBase {
 public:
-    FunctionVisitor(clang::ASTContext& context, CodeBlock& target) :
-        ValueVisitBase(context, target)
+    FunctionVisitor(clang::ASTContext& context, CodeBlock& target, bool debug) :
+        ValueVisitBase(context, target, debug)
     {}
 
     bool VisitParmVarDecl(clang::ParmVarDecl* var)
@@ -137,17 +143,17 @@ public:
 // ------------------------------------ //
 // CodeBlockBuildingVisitor::ValueVisitBase
 CodeBlockBuildingVisitor::ValueVisitBase::ValueVisitBase(
-    clang::ASTContext& context, CodeBlock& target) :
+    clang::ASTContext& context, CodeBlock& target, bool debug) :
     Context(context),
-    Target(target)
+    Target(target), Debug(debug)
 {}
 
 bool CodeBlockBuildingVisitor::ValueVisitBase::VisitVarDecl(clang::VarDecl* var)
 {
     clang::FullSourceLoc fullLocation = Context.getFullLoc(var->getBeginLoc());
 
-    if(!fullLocation.isValid())
-        return true;
+    // if(!fullLocation.isValid())
+    //     return true;
 
     if(clang::dyn_cast<clang::ParmVarDecl>(var))
         return true;
@@ -162,23 +168,28 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitVarDecl(clang::VarDecl* var)
 
     const auto* value = var->getAnyInitializer();
 
-    llvm::outs() << "local var: " << varType << " " << varName << " init: ";
+    if(Debug)
+        llvm::outs() << "local var: " << varType << " " << varName << " init: ";
 
     if(value) {
 
         if(value->getStmtClass() == clang::Stmt::StmtClass::StringLiteralClass) {
             const auto* literal = static_cast<const clang::StringLiteral*>(value);
 
-            llvm::outs() << "string literal('" << literal->getBytes() << "')";
+            if(Debug)
+                llvm::outs() << "string literal('" << literal->getBytes() << "')";
             state.Set(BufferInfo(literal->getByteLength()));
         } else {
-            llvm::outs() << "unknown initializer type";
+            if(Debug)
+                llvm::outs() << "unknown initializer type";
         }
     } else {
-        llvm::outs() << "uninitialized";
+        if(Debug)
+            llvm::outs() << "uninitialized";
     }
 
-    llvm::outs() << "\n";
+    if(Debug)
+        llvm::outs() << "\n";
 
     // var->dump();
 
@@ -209,21 +220,21 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseIfStmt(clang::IfStmt* stm
         return true;
     }
 
-    llvm::outs() << "Condition: " << condition.Dump() << "\n";
-    llvm::outs() << "Combined with current: " << GetCurrentCondition().And(condition).Dump()
-                 << "\n";
-    llvm::outs() << "Negated: " << negated.Dump() << "\n";
+    if(Debug)
+        llvm::outs() << "Condition: " << condition.Dump() << "\n"
+                     << "Combined with current: "
+                     << GetCurrentCondition().And(condition).Dump() << "\n"
+                     << "Negated: " << negated.Dump() << "\n";
 
     if(!negated.IsAlwaysTrue()) {
         ConditionalContentVisitor visitor(
-            GetCurrentCondition().And(condition), Context, Target);
-        llvm::outs() << "Sub-visiting then\n";
+            GetCurrentCondition().And(condition), Context, Target, Debug);
         visitor.TraverseStmt(stmt->getThen());
     }
 
     if(!condition.IsAlwaysTrue()) {
-        ConditionalContentVisitor visitor(GetCurrentCondition().And(negated), Context, Target);
-        llvm::outs() << "Sub-visiting else\n";
+        ConditionalContentVisitor visitor(
+            GetCurrentCondition().And(negated), Context, Target, Debug);
         visitor.TraverseStmt(stmt->getElse());
     }
 
@@ -238,26 +249,30 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitArraySubscriptExpr(
     if(!index)
         return true;
 
-    VariableRefOrArrayVisitor lhsVisitor;
+    VariableRefOrArrayVisitor lhsVisitor(Debug);
     lhsVisitor.TraverseStmt(expr->getLHS());
 
     if(!lhsVisitor.FoundVar)
         return true;
 
-    llvm::outs() << "found array access for variable: " << lhsVisitor.FoundVar->Dump() << "\n";
+    if(Debug)
+        llvm::outs() << "found array access for variable: " << lhsVisitor.FoundVar->Dump()
+                     << "\n";
 
     VariableState indexValue;
 
     if(index->getStmtClass() == clang::Stmt::StmtClass::IntegerLiteralClass) {
         const auto* literal = static_cast<const clang::IntegerLiteral*>(index);
 
-        llvm::outs() << "used array index: " << literal->getValue() << "\n";
+        if(Debug)
+            llvm::outs() << "used array index: " << literal->getValue() << "\n";
 
         // TODO: this can only handle 64 bit numbers, anything higher will cause an error
         indexValue.Set(PrimitiveInfo(literal->getValue().getSExtValue()));
 
     } else {
-        llvm::outs() << "unknown array subscript index\n";
+        if(Debug)
+            llvm::outs() << "unknown array subscript index\n";
     }
 
     if(indexValue.State != VariableState::STATE::Unknown) {
@@ -277,15 +292,16 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitBinaryOperator(clang::Binary
     // llvm::outs() << "Assignment found: ";
     // op->dump();
 
-    VariableRefOrArrayVisitor lhsVisitor;
+    VariableRefOrArrayVisitor lhsVisitor(Debug);
     lhsVisitor.TraverseStmt(op->getLHS());
 
-    VariableRefOrArrayVisitor rhsVisitor;
+    VariableRefOrArrayVisitor rhsVisitor(Debug);
     rhsVisitor.TraverseStmt(op->getRHS());
 
     if(lhsVisitor.FoundVar && rhsVisitor.FoundVar) {
-        llvm::outs() << "Assignment found: " << lhsVisitor.FoundVar->Dump() << " = "
-                     << rhsVisitor.FoundVar->Dump() << "\n";
+        if(Debug)
+            llvm::outs() << "Assignment found: " << lhsVisitor.FoundVar->Dump() << " = "
+                         << rhsVisitor.FoundVar->Dump() << "\n";
 
         VariableState state;
         state.Set(*rhsVisitor.FoundVar);
@@ -347,7 +363,7 @@ bool CodeBlockBuildingVisitor::TraverseFunctionDecl(clang::FunctionDecl* fun)
     CodeBlock block(fun->getQualifiedNameAsString(), Context.getFullLoc(fun->getBeginLoc()));
     // This is split in two to easily detect the function end
 
-    FunctionVisitor Visitor(Context, block);
+    FunctionVisitor Visitor(Context, block, Debug);
     Visitor.TraverseDecl(fun);
 
     if(Debug)

@@ -22,7 +22,7 @@ void MainASTConsumer::HandleTranslationUnit(clang::ASTContext& Context)
     // The traversal creates all the CodeBlocks in this TU
     // This analysis here can only find problems within this TU as it only has the current TU's
     // CodeBlocks loaded
-    const auto errors = registry.PerformAnalysis();
+    const auto errors = registry.PerformAnalysis(DebugPrint);
 
     for(const auto& error : errors) {
         if(error.Severity == FoundProblem::SEVERITY::Error) {

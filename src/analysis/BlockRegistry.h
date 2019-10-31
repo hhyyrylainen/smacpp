@@ -18,7 +18,7 @@ public:
 
     //! \brief Performs the static analysis starting from "main" and other good candidate
     //! functions
-    std::vector<FoundProblem> PerformAnalysis() const;
+    std::vector<FoundProblem> PerformAnalysis(bool debug) const;
 
 private:
     std::unordered_map<std::string, CodeBlock> FunctionBlocks;

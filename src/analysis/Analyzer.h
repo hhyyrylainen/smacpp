@@ -103,6 +103,11 @@ public:
     bool BeginAnalysis(const CodeBlock& entryPoint, const BlockRegistry* availableFunctions,
         const std::vector<VariableState>& callParameters);
 
+    void SetDebug(bool debug)
+    {
+        Debug = debug;
+    }
+
     static bool ResolveCallParameters(AnalysisOperation& operation, const CodeBlock& function,
         const std::vector<VariableState>& callParameters);
 
@@ -113,6 +118,7 @@ private:
 private:
     std::vector<FoundProblem>& Problems;
     DoneAnalysisRegistry AlreadyQueuedOps;
+    bool Debug = false;
 };
 
 } // namespace smacpp
