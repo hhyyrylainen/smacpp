@@ -10,6 +10,16 @@ namespace smacpp {
 
 class VariableValueProvider;
 
+enum class COMPARISON {
+    LESS_THAN,
+    LESS_THAN_EQUAL,
+    GREATER_THAN,
+    GREATER_THAN_EQUAL,
+    NOT_EQUAL,
+    EQUAL
+};
+
+
 struct VariableIdentifier {
     VariableIdentifier(const std::string& name) : Name(name) {}
 
@@ -36,6 +46,8 @@ public:
 
     std::string Dump() const;
 
+    // TODO: relative pointer addresses aren't known
+
     bool operator==(const BufferInfo& other) const
     {
         return NullPtr == other.NullPtr && AllocatedSize == other.AllocatedSize;
@@ -55,6 +67,8 @@ public:
     Integer AsInteger() const;
 
     std::string Dump() const;
+
+    bool CompareTo(COMPARISON op, const PrimitiveInfo& other) const;
 
     bool operator==(const PrimitiveInfo& other) const
     {
@@ -81,6 +95,8 @@ class UnknownVariableStateException : std::runtime_error {
 public:
     UnknownVariableStateException(const char* what) : std::runtime_error(what) {}
 };
+
+
 
 class VariableState {
 public:
@@ -110,6 +126,9 @@ public:
     //! \brief Resolves the actual value if this state is copied from a variable
     VariableState Resolve(const VariableValueProvider& otherVariables) const;
 
+    //! \brief Compares this variable to another with an operator
+    bool CompareTo(COMPARISON op, const VariableState& other) const;
+
     //! \brief Converts this to a 0 or 1
     //! \exception UnknownVariableStateException if unknown
     int ToZeroOrNonZero() const;
@@ -128,21 +147,57 @@ public:
 
 struct ValueRange {
 public:
-    enum class RANGE_CLASS { NotZero, Zero };
+    enum class RANGE_CLASS { NotZero, Zero, Comparison, Constant };
 
 public:
     ValueRange(RANGE_CLASS type) : Type(type) {}
+    ValueRange(COMPARISON op, VariableIdentifier other) :
+        Type(RANGE_CLASS::Comparison), Comparison(op), ComparedTo(other)
+    {}
+
+    ValueRange(COMPARISON op, VariableState constant) :
+        Type(RANGE_CLASS::Constant), Comparison(op), ComparedConstant(constant)
+    {}
 
     ValueRange Negate() const;
 
     //! \returns True if the provided variable state satisfies this range
-    bool Matches(const VariableState& state) const;
+    bool Matches(
+        const VariableState& state, const VariableValueProvider& otherVariables) const;
 
     std::string Dump() const;
 
     RANGE_CLASS Type;
+    COMPARISON Comparison;
+    std::optional<VariableIdentifier> ComparedTo;
+    std::optional<VariableState> ComparedConstant;
 };
 
+inline COMPARISON Negate(COMPARISON op)
+{
+    switch(op) {
+    case COMPARISON::LESS_THAN: return COMPARISON::GREATER_THAN_EQUAL;
+    case COMPARISON::LESS_THAN_EQUAL: return COMPARISON::GREATER_THAN;
+    case COMPARISON::GREATER_THAN: return COMPARISON::LESS_THAN_EQUAL;
+    case COMPARISON::GREATER_THAN_EQUAL: return COMPARISON::LESS_THAN;
+    case COMPARISON::NOT_EQUAL: return COMPARISON::EQUAL;
+    case COMPARISON::EQUAL: return COMPARISON::NOT_EQUAL;
+    default: throw std::runtime_error("negate not implemented for this COMPARISON");
+    }
+}
+
+inline const char* Dump(COMPARISON op)
+{
+    switch(op) {
+    case COMPARISON::LESS_THAN: return "<";
+    case COMPARISON::LESS_THAN_EQUAL: return "<=";
+    case COMPARISON::GREATER_THAN: return ">";
+    case COMPARISON::GREATER_THAN_EQUAL: return ">=";
+    case COMPARISON::NOT_EQUAL: return "!=";
+    case COMPARISON::EQUAL: return "==";
+    default: throw std::runtime_error("dump not implemented for this COMPARISON");
+    }
+}
 
 
 } // namespace smacpp

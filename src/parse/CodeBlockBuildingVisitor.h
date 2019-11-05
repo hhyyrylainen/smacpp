@@ -14,9 +14,6 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
     //! \brief Looks for a variable reference or an array subscript to a variable
     class VariableRefOrArrayVisitor;
 
-    //! \brief Makes a VariableState from an Expr
-    class VariableStateFindVisitor;
-
     class ValueVisitBase {
     public:
         ValueVisitBase(clang::ASTContext& context, CodeBlock& target, bool debug);

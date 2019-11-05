@@ -1,6 +1,8 @@
 // ------------------------------------ //
 #include "Condition.h"
 
+#include "LiteralStateVisitor.h"
+
 #include "clang/AST/RecursiveASTVisitor.h"
 
 #include <sstream>
@@ -11,22 +13,134 @@ class ConditionParseVisitor : public clang::RecursiveASTVisitor<ConditionParseVi
 public:
     // FunctionVisitor(clang::ASTContext& context) : ValueVisitBase(context) {}
 
+    // No clue why traverse doesn't work here
+    bool VisitBinaryOperator(clang::BinaryOperator* op)
+    {
+        clang::Expr* lhs = op->getLHS();
+        clang::Expr* rhs = op->getRHS();
+
+        if(!lhs || !rhs)
+            return true;
+
+        if(op->getReferencedDeclOfCallee()) {
+            llvm::outs() << "binary operator has decl of callee, this is not handled: ";
+            llvm::outs() << "decl of callee: ";
+            op->getReferencedDeclOfCallee()->dump();
+            return true;
+        }
+
+        // llvm::outs() << "found operator ";
+        // llvm::outs() << "lhs: ";
+        // lhs->dump();
+        // llvm::outs() << "rhs: ";
+        // rhs->dump();
+
+        ConditionParseVisitor lhsVisitor;
+        lhsVisitor.TraverseStmt(lhs);
+
+        ConditionParseVisitor rhsVisitor;
+        rhsVisitor.TraverseStmt(rhs);
+
+        const auto lhsConstant = LiteralFromExpr(lhs);
+        const auto rhsConstant = LiteralFromExpr(rhs);
+
+        if((lhsVisitor.Variable || lhsConstant) && (rhsVisitor.Variable || rhsConstant)) {
+            std::optional<COMPARISON> translatedOp;
+
+            switch(op->getOpcode()) {
+            case clang::BO_LT: translatedOp = COMPARISON::LESS_THAN; break;
+            case clang::BO_LE: translatedOp = COMPARISON::LESS_THAN_EQUAL; break;
+            case clang::BO_GT: translatedOp = COMPARISON::GREATER_THAN; break;
+            case clang::BO_GE: translatedOp = COMPARISON::GREATER_THAN_EQUAL; break;
+            case clang::BO_EQ: translatedOp = COMPARISON::EQUAL; break;
+            case clang::BO_NE: translatedOp = COMPARISON::NOT_EQUAL; break;
+            default:
+                llvm::outs() << "unknown binary operator opcode for two variables: "
+                             << op->getOpcode() << "\n";
+                return false;
+            }
+
+            if(!lhsVisitor.Variable) {
+
+                llvm::outs() << "TODO: implement constant comparing to a variable (only "
+                                "variable to constant comparison works)\n";
+                return false;
+            }
+
+            if(rhsVisitor.Variable) {
+                Parts = Condition::Part(VariableValueCondition(
+                    *lhsVisitor.Variable, ValueRange(*translatedOp, *rhsVisitor.Variable)));
+            } else {
+
+                Parts = Condition::Part(VariableValueCondition(
+                    *lhsVisitor.Variable, ValueRange(*translatedOp, *rhsConstant)));
+            }
+            return false;
+        }
+
+        llvm::outs() << "binary operator has lhs and rhs that couldn't be combined\n";
+
+        return true;
+    }
+
+    bool VisitImplicitCastExpr(clang::ImplicitCastExpr* expr)
+    {
+        switch(expr->getCastKind()) {
+        case clang::CK_FixedPointToBoolean:
+        case clang::CK_FloatingComplexToBoolean:
+        case clang::CK_FloatingToBoolean:
+        case clang::CK_IntegralComplexToBoolean:
+        case clang::CK_IntegralToBoolean:
+        case clang::CK_MemberPointerToBoolean:
+        case clang::CK_PointerToBoolean: {
+            ConditionParseVisitor subVisitor;
+            subVisitor.TraverseStmt(expr->getSubExpr());
+
+            if(!subVisitor.Variable) {
+                llvm::outs() << "could not find implicit cast referenced variable\n";
+                return false;
+            }
+
+            Parts = Condition::Part(VariableValueCondition(
+                *subVisitor.Variable, ValueRange(ValueRange::RANGE_CLASS::NotZero)));
+            return false;
+        }
+        default: return true;
+        }
+    }
+
     bool VisitDeclRefExpr(clang::DeclRefExpr* ref)
     {
         if(clang::VarDecl* var = clang::dyn_cast<clang::VarDecl>(ref->getDecl()); var) {
 
-            if(Parts) {
-                llvm::outs() << "found multiple conditions, ConditionParseVisitor doesn't "
-                                "know how to handle this yet\n";
+            if(Variable) {
+                llvm::outs() << "found multiple variables in condition, this should have been "
+                                "handled by a higher level visitor\n";
             }
 
-            Parts = Condition::Part(VariableValueCondition(
-                VariableIdentifier(var), ValueRange(ValueRange::RANGE_CLASS::NotZero)));
+            Variable = VariableIdentifier(var);
         }
 
         return true;
     }
 
+    std::optional<VariableState> LiteralFromExpr(clang::Expr* expr)
+    {
+        LiteralStateVisitor visitor;
+        visitor.TraverseStmt(expr);
+
+        return visitor.FoundValue;
+    }
+
+    void CheckIfOnlyVariable()
+    {
+        if(!Parts && Variable) {
+            Parts = Condition::Part(VariableValueCondition(
+                *Variable, ValueRange(ValueRange::RANGE_CLASS::NotZero)));
+        }
+    }
+
+    std::optional<VariableIdentifier> Variable;
     std::optional<Condition::Part> Parts;
 };
 // ------------------------------------ //
@@ -54,7 +168,7 @@ bool Condition::Part::Evaluate(const VariableValueProvider& values) const
             return false;
         }
 
-        return value->Value.Matches(actualValue);
+        return value->Value.Matches(actualValue, values);
 
     } else if(auto combined = std::get_if<CombinedParts>(&Value); combined) {
 
@@ -119,6 +233,7 @@ Condition::Condition(clang::Stmt* stmt)
 {
     ConditionParseVisitor visitor;
     visitor.TraverseStmt(stmt);
+    visitor.CheckIfOnlyVariable();
 
     if(!visitor.Parts || visitor.Parts->DetectTautology()) {
 

@@ -19,6 +19,7 @@ add_library(smacppcommon
   parse/CodeBlockBuildingVisitor.cpp
   parse/MainASTConsumer.h
   parse/MainASTConsumer.cpp
+  parse/LiteralStateVisitor.h
   integration/SMACPPFinder.h
   integration/SMACPPFinder.cpp
   analysis/BlockRegistry.h

@@ -254,15 +254,21 @@ std::tuple<bool, std::list<AnalysisOperation>> Analyzer::PerformAnalysisOperatio
 
         const ProcessedAction& action = **iter;
 
-        if(operation.State->MatchesCondition(action.If)) {
+        try {
+            if(operation.State->MatchesCondition(action.If)) {
 
+                if(Debug)
+                    std::cout << "analysis at step: " << action.Dump() << "\n";
+                action.Dispatch(operation);
+
+            } else {
+                // If the failure was due to unknown variable states execution should split
+                // here, see the TODO above
+            }
+        } catch(const UnknownVariableStateException& e) {
             if(Debug)
-                std::cout << "analysis at step: " << action.Dump() << "\n";
-            action.Dispatch(operation);
-
-        } else {
-            // If the failure was due to unknown variable states execution should split here,
-            // see the TODO above
+                std::cout << "Unknown variable state at step: " << action.Dump() << ": "
+                          << action.Dump() << "\n";
         }
     }
 

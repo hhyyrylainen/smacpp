@@ -1,6 +1,7 @@
 // ------------------------------------ //
 #include "CodeBlockBuildingVisitor.h"
 
+#include "LiteralStateVisitor.h"
 #include "ProcessedAction.h"
 #include "analysis/BlockRegistry.h"
 
@@ -47,32 +48,6 @@ private:
     bool LikelyFullVariableAssign = true;
     bool Debug;
 };
-
-
-// ------------------------------------ //
-// CodeBlockBuildingVisitor::VariableRefOrArrayVisitor
-class CodeBlockBuildingVisitor::VariableStateFindVisitor
-    : public clang::RecursiveASTVisitor<VariableStateFindVisitor> {
-public:
-    // Parent type of all literals
-    // bool VisitExpr(clang::Expr* expr)
-    // {
-    //     return true;
-    // }
-
-    bool TraverseIntegerLiteral(clang::IntegerLiteral* value)
-    {
-        VariableState state;
-
-        // TODO: this can only handle 64 bit numbers, anything higher will cause an error
-        state.Set(PrimitiveInfo(value->getValue().getSExtValue()));
-        FoundValue = state;
-        return false;
-    }
-
-    std::optional<VariableState> FoundValue;
-};
-
 
 // ------------------------------------ //
 #define VALUE_VISITOR_VISIT_TYPES                                 \
@@ -334,7 +309,7 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseCallExpr(clang::CallExpr*
 
         // llvm::outs() << "visiting arg(" << i << "): ";
         // arg->dump();
-        VariableStateFindVisitor visitor;
+        LiteralStateVisitor visitor;
         visitor.TraverseStmt(arg);
 
         if(visitor.FoundValue) {
