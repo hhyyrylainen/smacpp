@@ -38,6 +38,7 @@ public:
     bool MatchesCondition(const Condition& condition) const;
 
     VariableState GetVariableValue(const VariableIdentifier& variable) const override;
+    VariableState GetVariableValueRaw(const VariableIdentifier& variable) const override;
 
     std::unordered_map<VariableIdentifier, VariableState> Variables;
 };

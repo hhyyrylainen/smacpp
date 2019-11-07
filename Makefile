@@ -42,6 +42,9 @@ clang_ast_view:
 ast_overflow_2:
 	clang $(AST) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)//test_incorrect/02_simple_if_int1.c
 
+ast_overflow_2_2:
+	clang $(AST) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)//test_incorrect/02_simple_if_int2.c
+
 ast_overflow_4:
 	clang $(AST) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)//test_incorrect/04_simple_switch.c
 

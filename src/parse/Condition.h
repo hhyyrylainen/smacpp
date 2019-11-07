@@ -34,6 +34,8 @@ public:
     virtual ~VariableValueProvider() = default;
 
     virtual VariableState GetVariableValue(const VariableIdentifier& variable) const = 0;
+    //! \brief Variable value without any resolving, needed by resolving itself
+    virtual VariableState GetVariableValueRaw(const VariableIdentifier& variable) const = 0;
 };
 
 enum class COMBINE_OPERATOR { And, Or };

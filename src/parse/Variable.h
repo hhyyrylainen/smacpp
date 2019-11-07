@@ -9,7 +9,9 @@
 namespace smacpp {
 
 class VariableValueProvider;
+class VariableState;
 
+//! \todo The values inside should be renamed to match naming convention
 enum class COMPARISON {
     LESS_THAN,
     LESS_THAN_EQUAL,
@@ -18,6 +20,8 @@ enum class COMPARISON {
     NOT_EQUAL,
     EQUAL
 };
+
+enum class OPERATOR { Add, Multiply, Subtract };
 
 
 struct VariableIdentifier {
@@ -46,6 +50,8 @@ public:
 
     std::string Dump() const;
 
+    BufferInfo ApplyOperator(OPERATOR op, const BufferInfo& other) const;
+
     // TODO: relative pointer addresses aren't known
 
     bool operator==(const BufferInfo& other) const
@@ -69,6 +75,7 @@ public:
     std::string Dump() const;
 
     bool CompareTo(COMPARISON op, const PrimitiveInfo& other) const;
+    PrimitiveInfo ApplyOperator(OPERATOR op, const PrimitiveInfo& other) const;
 
     bool operator==(const PrimitiveInfo& other) const
     {
@@ -91,7 +98,22 @@ struct VarCopyInfo {
     VariableIdentifier Source;
 };
 
-class UnknownVariableStateException : std::runtime_error {
+struct ComputeInfo {
+    ComputeInfo(const VariableState& lhs, OPERATOR op, const VariableState& rhs);
+
+    std::string Dump() const;
+
+    bool operator==(const ComputeInfo& other) const
+    {
+        return Operation == other.Operation && LHS == other.LHS && RHS == other.RHS;
+    }
+
+    OPERATOR Operation;
+    std::shared_ptr<VariableState> LHS;
+    std::shared_ptr<VariableState> RHS;
+};
+
+class UnknownVariableStateException : public std::runtime_error {
 public:
     UnknownVariableStateException(const char* what) : std::runtime_error(what) {}
 };
@@ -100,7 +122,35 @@ public:
 
 class VariableState {
 public:
-    enum class STATE { Unknown, Primitive, Buffer, CopyVar };
+    enum class STATE { Unknown, Primitive, Buffer, CopyVar, Compute };
+
+public:
+    VariableState() {}
+
+    VariableState(const BufferInfo& data)
+    {
+        Set(data);
+    }
+
+    VariableState(const VarCopyInfo& data)
+    {
+        Set(data);
+    }
+
+    VariableState(const PrimitiveInfo& data)
+    {
+        Set(data);
+    }
+
+    VariableState(const ComputeInfo& compute)
+    {
+        Set(compute);
+    }
+
+    VariableState(const VariableState& other) : State(other.State), Value(other.Value) {}
+    VariableState(VariableState&& other) noexcept :
+        State(other.State), Value(std::move(other.Value))
+    {}
 
     //! Sets from a buffer
     void Set(BufferInfo buffer)
@@ -123,26 +173,52 @@ public:
         Value = primitive;
     }
 
+    void Set(ComputeInfo compute)
+    {
+        State = STATE::Compute;
+        Value = compute;
+    }
+
     //! \brief Resolves the actual value if this state is copied from a variable
     VariableState Resolve(const VariableValueProvider& otherVariables) const;
 
     //! \brief Compares this variable to another with an operator
     bool CompareTo(COMPARISON op, const VariableState& other) const;
 
+    //! \brief Returns a new state that is either a fully computed one or which will compute a
+    //! value when resolving
+    //! \todo If this contains calculations that all use known values this could be resolved
+    //! already
+    VariableState CreateOperatorApplyingState(OPERATOR op, const VariableState& other) const;
+
     //! \brief Converts this to a 0 or 1
     //! \exception UnknownVariableStateException if unknown
     int ToZeroOrNonZero() const;
 
     std::string Dump() const;
+    std::string DumpValue() const;
+
+    VariableState operator=(const VariableState& other)
+    {
+        State = other.State;
+        Value = other.Value;
+        return *this;
+    }
 
     bool operator==(const VariableState& other) const
     {
         return State == other.State && Value == other.Value;
     }
 
+    static VariableState PerformComputation(
+        const ComputeInfo& computation, const VariableValueProvider& otherVariables);
+
+    static VariableState ResolveValue(
+        VariableState variable, const VariableValueProvider& otherVariables);
+
     STATE State = STATE::Unknown;
 
-    std::variant<std::monostate, BufferInfo, PrimitiveInfo, VarCopyInfo> Value;
+    std::variant<std::monostate, BufferInfo, PrimitiveInfo, VarCopyInfo, ComputeInfo> Value;
 };
 
 struct ValueRange {
@@ -199,5 +275,14 @@ inline const char* Dump(COMPARISON op)
     }
 }
 
+inline const char* Dump(OPERATOR op)
+{
+    switch(op) {
+    case OPERATOR::Add: return "+";
+    case OPERATOR::Multiply: return "*";
+    case OPERATOR::Subtract: return "-";
+    default: throw std::runtime_error("dump not implemented for this OPERATOR");
+    }
+}
 
 } // namespace smacpp

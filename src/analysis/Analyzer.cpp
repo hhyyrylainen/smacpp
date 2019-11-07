@@ -59,10 +59,23 @@ VariableState ProgramState::GetVariableValue(const VariableIdentifier& variable)
         return VariableState();
     }
 
-    // TODO: resolve copyvar
-    if(found->second.State == VariableState::STATE::CopyVar) {
+    try {
+        return found->second.Resolve(*this);
+    } catch(const UnknownVariableStateException& e) {
+        // if(Debug)
+        std::cout << "Variable could not be fully resolved: " << variable.Dump()
+                  << " exception: " << e.what() << "\n";
+        return VariableState();
     }
+}
 
+VariableState ProgramState::GetVariableValueRaw(const VariableIdentifier& variable) const
+{
+    const auto found = Variables.find(variable);
+
+    if(found == Variables.end()) {
+        return VariableState();
+    }
     return found->second;
 }
 // ------------------------------------ //
@@ -136,13 +149,13 @@ void AnalysisOperation::HandleAction(const action::FunctionCall* call)
 void AnalysisOperation::HandleAction(const action::VarDeclared* var)
 {
     // TODO: should resolve happen here?
-    State->CreateLocal(var->Variable, var->State);
+    State->CreateLocal(var->Variable, var->State.Resolve(*State));
 }
 
 void AnalysisOperation::HandleAction(const action::VarAssigned* var)
 {
     // TODO: should resolve happen here?
-    State->Assign(var->Variable, var->State);
+    State->Assign(var->Variable, var->State.Resolve(*State));
 }
 
 void AnalysisOperation::HandleAction(const action::ArrayIndexAccess* index)

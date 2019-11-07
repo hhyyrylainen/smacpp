@@ -21,6 +21,17 @@ std::string BufferInfo::Dump() const
         return "nullptr";
     return "buffer of size " + std::to_string(AllocatedSize);
 }
+
+BufferInfo BufferInfo::ApplyOperator(OPERATOR op, const BufferInfo& other) const
+{
+    switch(op) {
+        // TODO: these should really return some value indicating these are unknown
+    case OPERATOR::Add: return BufferInfo(nullptr);
+    case OPERATOR::Multiply: return BufferInfo(nullptr);
+    case OPERATOR::Subtract: return BufferInfo(nullptr);
+    default: throw std::runtime_error("operator not supported on BufferInfo");
+    }
+}
 // ------------------------------------ //
 // PrimitiveInfo
 bool PrimitiveInfo::IsNonZero() const
@@ -81,6 +92,59 @@ bool PrimitiveInfo::CompareTo(COMPARISON op, const PrimitiveInfo& other) const
     throw std::runtime_error("unhandled COMPARISON in PrimitiveInfo");
 }
 // ------------------------------------ //
+template<class T>
+std::optional<PrimitiveInfo> ApplyHelperOne(
+    OPERATOR op, const PrimitiveInfo& first, const PrimitiveInfo& second)
+{
+    if(auto val = std::get_if<T>(&first.Value); val) {
+        const auto otherVal = std::get<T>(second.Value);
+        switch(op) {
+        case OPERATOR::Add: return *val + otherVal;
+        case OPERATOR::Multiply: return *val * otherVal;
+        case OPERATOR::Subtract: return *val - otherVal;
+        }
+
+        throw std::runtime_error("unhandled OPERATOR in PrimitiveInfo");
+    }
+
+    return std::optional<PrimitiveInfo>{};
+}
+
+template<class T, class... Extra>
+PrimitiveInfo ApplyHelper(OPERATOR op, const PrimitiveInfo& first, const PrimitiveInfo& second)
+{
+    auto current = ApplyHelperOne<T>(op, first, second);
+
+    if(current)
+        return *current;
+
+    if constexpr(sizeof...(Extra) > 0) {
+        return ApplyHelper<Extra...>(op, first, second);
+    } else {
+        throw std::runtime_error("template expansion reached end, this shouldn't happen");
+    }
+}
+
+PrimitiveInfo PrimitiveInfo::ApplyOperator(OPERATOR op, const PrimitiveInfo& other) const
+{
+    if(Value.index() == other.Value.index()) {
+
+        return ApplyHelper<bool, Integer, double>(op, *this, other);
+    }
+
+    // A really basic operator which loses information
+    const auto first = AsInteger();
+    const auto second = other.AsInteger();
+
+    switch(op) {
+    case OPERATOR::Add: return first + second;
+    case OPERATOR::Multiply: return first * second;
+    case OPERATOR::Subtract: return first - second;
+    }
+
+    throw std::runtime_error("unhandled COMPARISON in PrimitiveInfo");
+}
+// ------------------------------------ //
 std::string PrimitiveInfo::Dump() const
 {
     if(auto var = std::get_if<bool>(&Value); var) {
@@ -96,9 +160,21 @@ std::string PrimitiveInfo::Dump() const
     }
 }
 // ------------------------------------ //
+// VarCopyInfo
 std::string VarCopyInfo::Dump() const
 {
     return "assign from " + Source.Dump();
+}
+// ------------------------------------ //
+// ComputeInfo
+ComputeInfo::ComputeInfo(const VariableState& lhs, OPERATOR op, const VariableState& rhs) :
+    Operation(op), LHS(std::make_shared<VariableState>(lhs)),
+    RHS(std::make_shared<VariableState>(rhs))
+{}
+// ------------------------------------ //
+std::string ComputeInfo::Dump() const
+{
+    return LHS->Dump() + " " + ::Dump(Operation) + " " + RHS->Dump();
 }
 // ------------------------------------ //
 // VariableState
@@ -109,6 +185,7 @@ int VariableState::ToZeroOrNonZero() const
         throw UnknownVariableStateException("unknown variable in VariableState");
     case STATE::Primitive: return std::get<PrimitiveInfo>(Value).IsNonZero() ? 1 : 0;
     case STATE::Buffer: return std::get<BufferInfo>(Value).NullPtr ? 0 : 1;
+    case STATE::Compute:
     case STATE::CopyVar:
         throw UnknownVariableStateException(
             "copyvar must be resolved before call to ToZeroOrNonZero");
@@ -119,16 +196,25 @@ int VariableState::ToZeroOrNonZero() const
 // ------------------------------------ //
 VariableState VariableState::Resolve(const VariableValueProvider& otherVariables) const
 {
-    VariableState result(*this);
-
-    while(result.State == STATE::CopyVar) {
-
-        result = otherVariables.GetVariableValue(std::get<VarCopyInfo>(Value).Source);
-    }
-
-    return result;
+    return VariableState::ResolveValue(*this, otherVariables);
 }
 
+VariableState VariableState::ResolveValue(
+    VariableState variable, const VariableValueProvider& otherVariables)
+{
+    while(variable.State == STATE::CopyVar) {
+
+        variable =
+            otherVariables.GetVariableValueRaw(std::get<VarCopyInfo>(variable.Value).Source);
+    }
+
+    if(variable.State == STATE::Compute) {
+        variable = PerformComputation(std::get<ComputeInfo>(variable.Value), otherVariables);
+    }
+
+    return variable;
+}
+// ------------------------------------ //
 bool VariableState::CompareTo(COMPARISON op, const VariableState& other) const
 {
     // TODO: maybe throw here to allow detecting this
@@ -149,16 +235,68 @@ bool VariableState::CompareTo(COMPARISON op, const VariableState& other) const
     }
 }
 // ------------------------------------ //
+VariableState VariableState::CreateOperatorApplyingState(
+    OPERATOR op, const VariableState& other) const
+{
+    if(State == STATE::Unknown || other.State == STATE::Unknown)
+        return VariableState();
+
+    return VariableState(ComputeInfo(*this, op, other));
+}
+// ------------------------------------ //
+VariableState VariableState::PerformComputation(
+    const ComputeInfo& computation, const VariableValueProvider& otherVariables)
+{
+    const auto lhs = computation.LHS->Resolve(otherVariables);
+    const auto rhs = computation.RHS->Resolve(otherVariables);
+
+    if(lhs.State == STATE::Unknown || rhs.State == STATE::Unknown)
+        return VariableState();
+
+    // TODO: some different states could probably be applied an operator to. Like
+    // Buffer and 1
+    if(lhs.State != rhs.State)
+        return VariableState();
+
+    switch(lhs.State) {
+    case STATE::Primitive:
+        return std::get<PrimitiveInfo>(lhs.Value).ApplyOperator(
+            computation.Operation, std::get<PrimitiveInfo>(rhs.Value));
+    case STATE::Buffer:
+        return std::get<BufferInfo>(lhs.Value).ApplyOperator(
+            computation.Operation, std::get<BufferInfo>(rhs.Value));
+    case STATE::Compute:
+    case STATE::CopyVar:
+        throw UnknownVariableStateException(
+            "copyvar / recursive compute should have been solved (PerformComputation)");
+    default: throw std::runtime_error("this should be unreachable");
+    }
+}
+// ------------------------------------ //
 std::string VariableState::Dump() const
 {
     switch(State) {
     case STATE::Unknown: return "unknown";
-    case STATE::Primitive: return std::get<PrimitiveInfo>(Value).Dump();
-    case STATE::Buffer: return std::get<BufferInfo>(Value).Dump();
-    case STATE::CopyVar: return std::get<VarCopyInfo>(Value).Dump();
+    case STATE::Primitive:
+    case STATE::Buffer:
+    case STATE::CopyVar: return DumpValue();
+    case STATE::Compute: return "(compute " + std::get<ComputeInfo>(Value).Dump() + ")";
     }
 
     throw std::runtime_error("VariableState is in invalid state");
+}
+
+std::string VariableState::DumpValue() const
+{
+    if(auto value = std::get_if<PrimitiveInfo>(&Value); value) {
+        return value->Dump();
+    } else if(auto value = std::get_if<BufferInfo>(&Value); value) {
+        return value->Dump();
+    } else if(auto value = std::get_if<VarCopyInfo>(&Value); value) {
+        return value->Dump();
+    } else {
+        throw std::runtime_error("VariableState Value has unprintable type");
+    }
 }
 // ------------------------------------ //
 // ValueRange

@@ -20,6 +20,7 @@ add_library(smacppcommon
   parse/MainASTConsumer.h
   parse/MainASTConsumer.cpp
   parse/LiteralStateVisitor.h
+  parse/ComplexExpressionParser.h
   integration/SMACPPFinder.h
   integration/SMACPPFinder.cpp
   analysis/BlockRegistry.h

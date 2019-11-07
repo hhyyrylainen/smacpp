@@ -20,11 +20,33 @@ public:
         VariableState state;
 
         // TODO: this can only handle 64 bit numbers, anything higher will cause an error
-        state.Set(PrimitiveInfo(value->getValue().getSExtValue()));
+        state.Set(PrimitiveInfo(ApplyCurrentEffects(value->getValue().getSExtValue())));
         FoundValue = state;
         return false;
     }
 
+    bool VisitUnaryOperator(clang::UnaryOperator* op)
+    {
+        if(op->getOpcode() == clang::UO_Minus) {
+            Negate = !Negate;
+        }
+
+        return true;
+    }
+
+    template<typename T>
+    T ApplyCurrentEffects(const T& value)
+    {
+        if(Negate) {
+            Negate = false;
+            return -value;
+        }
+        return value;
+    }
+
     std::optional<VariableState> FoundValue;
+
+protected:
+    bool Negate = false;
 };
 } // namespace smacpp

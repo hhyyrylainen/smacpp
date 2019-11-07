@@ -1,6 +1,7 @@
 // ------------------------------------ //
 #include "CodeBlockBuildingVisitor.h"
 
+#include "ComplexExpressionParser.h"
 #include "LiteralStateVisitor.h"
 #include "ProcessedAction.h"
 #include "analysis/BlockRegistry.h"
@@ -417,30 +418,41 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::VisitBinaryOperator(clang::Binary
     if(clang::BO_Assign != op->getOpcode())
         return true;
 
-    // llvm::outs() << "Assignment found: ";
-    // op->dump();
+    // if(Debug) {
+    //     llvm::outs() << "Assignment statement found: ";
+    //     op->dump();
+    // }
 
     VariableRefOrArrayVisitor lhsVisitor(Debug);
     lhsVisitor.TraverseStmt(op->getLHS());
 
-    VariableRefOrArrayVisitor rhsVisitor(Debug);
+    if(!lhsVisitor.FoundVar)
+        return true;
+
+    ComplexExpressionParser rhsVisitor(Debug);
     rhsVisitor.TraverseStmt(op->getRHS());
 
-    if(lhsVisitor.FoundVar && rhsVisitor.FoundVar) {
+    if(!rhsVisitor.ParsedState) {
+        // Assign from literal
+        LiteralStateVisitor literalVisitor;
+        literalVisitor.TraverseStmt(op->getRHS());
+
+        if(literalVisitor.FoundValue)
+            rhsVisitor.ParsedState = literalVisitor.FoundValue;
+    }
+
+    // Simple variable to variable assign
+    if(rhsVisitor.ParsedState) {
         if(Debug)
             llvm::outs() << "Assignment found: " << lhsVisitor.FoundVar->Dump() << " = "
-                         << rhsVisitor.FoundVar->Dump() << "\n";
-
-        VariableState state;
-        state.Set(*rhsVisitor.FoundVar);
+                         << rhsVisitor.ParsedState->Dump() << "\n";
 
         // TODO: the location here is not fully accurate, the sub visitor needs to store the
         // accurate location
-        Target.AddProcessedAction(std::make_unique<action::VarAssigned>(
-                                      GetCurrentCondition(), *lhsVisitor.FoundVar, state),
+        Target.AddProcessedAction(std::make_unique<action::VarAssigned>(GetCurrentCondition(),
+                                      *lhsVisitor.FoundVar, *rhsVisitor.ParsedState),
             Context.getFullLoc(op->getBeginLoc()));
     }
-
     return true;
 }
 
