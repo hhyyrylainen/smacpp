@@ -106,6 +106,7 @@ public:
     Condition Negate() const;
 
     Condition And(const Condition& other) const;
+    Condition Or(const Condition& other) const;
 
     void SetTautology(bool value)
     {

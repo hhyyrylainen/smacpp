@@ -22,6 +22,8 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
 
         bool TraverseIfStmt(clang::IfStmt* stmt);
 
+        bool TraverseSwitchStmt(clang::SwitchStmt* stmt);
+
         bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr* expr);
 
         bool VisitBinaryOperator(clang::BinaryOperator* op);
@@ -43,6 +45,9 @@ class CodeBlockBuildingVisitor : public clang::RecursiveASTVisitor<CodeBlockBuil
 
     //! \brief Visits stuff under an if statement to take conditions into account
     class ConditionalContentVisitor;
+
+    //! \brief Conditional visitor that handles applying case conditions
+    class CaseConditionalVisitor;
 
     //! \brief Builds a code block from a function definition
     class FunctionVisitor;

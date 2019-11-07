@@ -27,11 +27,23 @@ analyzer_plugin_run: compile
 run_overflow_2: compile
 	$(SMACPP) $(DEBUG_ARGS) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)/test_incorrect/02_simple_if_int1.c
 
+run_overflow_2_2: compile
+	$(SMACPP) $(DEBUG_ARGS) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)/test_incorrect/02_simple_if_int2.c
+
+run_overflow_3: compile
+	$(SMACPP) $(DEBUG_ARGS) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)/test_incorrect/03_simple_if_multi_func.c
+
+run_overflow_4: compile
+	$(SMACPP) $(DEBUG_ARGS) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)/test_incorrect/04_simple_switch.c
+
 clang_ast_view:
 	clang $(AST) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)//test_incorrect/01_simple_if.c
 
 ast_overflow_2:
-	clang $(AST) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)//test_incorrect/02_simple_if_int1.c 
+	clang $(AST) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)//test_incorrect/02_simple_if_int1.c
+
+ast_overflow_4:
+	clang $(AST) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)//test_incorrect/04_simple_switch.c
 
 
 .PHONY: clang_plugin_run analyzer_plugin_run cmake compile test

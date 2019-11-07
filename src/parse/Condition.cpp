@@ -54,6 +54,10 @@ public:
             case clang::BO_GE: translatedOp = COMPARISON::GREATER_THAN_EQUAL; break;
             case clang::BO_EQ: translatedOp = COMPARISON::EQUAL; break;
             case clang::BO_NE: translatedOp = COMPARISON::NOT_EQUAL; break;
+            case clang::BO_LAnd: {
+                llvm::outs() << "Condition binary and not implemented\n";
+                return true;
+            }
             default:
                 llvm::outs() << "unknown binary operator opcode for two variables: "
                              << op->getOpcode() << "\n";
@@ -213,7 +217,7 @@ std::string Condition::Part::Dump() const
 
         return value->Dump();
 
-    } else if(auto combined = std::get_if<CombinedParts>(&Value); value) {
+    } else if(auto combined = std::get_if<CombinedParts>(&Value); combined) {
 
         std::stringstream sstream;
         sstream << "(";
@@ -286,6 +290,18 @@ Condition Condition::And(const Condition& other) const
     }
 
     return Condition(Part(std::make_shared<Part>(*VariableConditions), COMBINE_OPERATOR::And,
+        std::make_shared<Part>(*other.VariableConditions)));
+}
+
+Condition Condition::Or(const Condition& other) const
+{
+    if(Tautology || other.Tautology) {
+        Condition combined;
+        combined.SetTautology(true);
+        return combined;
+    }
+
+    return Condition(Part(std::make_shared<Part>(*VariableConditions), COMBINE_OPERATOR::Or,
         std::make_shared<Part>(*other.VariableConditions)));
 }
 // ------------------------------------ //
