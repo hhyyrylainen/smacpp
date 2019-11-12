@@ -21,11 +21,21 @@ std::vector<FoundProblem> BlockRegistry::PerformAnalysis(bool debug) const
 
     if(mainIter != FunctionBlocks.end()) {
 
-        // TODO: detect needing argc and argv
         Analyzer analyzer(problems);
         analyzer.SetDebug(debug);
 
-        if(!analyzer.BeginAnalysis(mainIter->second, this, {})) {
+        std::vector<VariableState> params;
+
+        if(mainIter->second.GetParameters().size() == 2 ||
+            mainIter->second.GetParameters().size() == 3) {
+
+            // TODO: these could be more intelligently done
+            while(mainIter->second.GetParameters().size() != params.size()) {
+                params.push_back(VariableState{});
+            }
+        }
+
+        if(!analyzer.BeginAnalysis(mainIter->second, this, params)) {
 
             problems.push_back(FoundProblem(FoundProblem::SEVERITY::Error,
                 "Analysis encountered a fatal error", mainIter->second.GetLocation()));

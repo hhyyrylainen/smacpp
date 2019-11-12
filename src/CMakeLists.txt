@@ -49,6 +49,7 @@ set_target_properties(smacppcommon PROPERTIES
 
 target_include_directories(smacppcommon PUBLIC ${CLANG_INCLUDE_DIRS})
 target_include_directories(smacppcommon PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(smacppcommon PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../thirdparty)
 
 add_library(smacpp-clang-plugin SHARED
   integration/ClangPlugin.cpp

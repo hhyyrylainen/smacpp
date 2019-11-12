@@ -7,6 +7,7 @@
 #include <list>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace smacpp {
@@ -54,7 +55,7 @@ public:
     bool CheckAndAdd(const CodeBlock* func, const std::vector<VariableState>& params);
 
 protected:
-    std::unordered_map<std::string, std::vector<std::vector<VariableState>>>
+    std::unordered_map<std::string, std::unordered_set<std::vector<VariableState>>>
         RecordedFunctionCalls;
 };
 

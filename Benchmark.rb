@@ -4,6 +4,7 @@
 require 'open3'
 require 'json'
 require 'fileutils'
+# require 'nokogiri'
 
 $results = {}
 
@@ -103,34 +104,51 @@ def warnings_or_errors?(run_result)
   run_result[:warning_count] > 0 || run_result[:error_count] > 0
 end
 
+def extra_opts_for_tool(compiler_options, tool)
+  # Ignore some warnings
+  if tool == :clang || tool == :smacpp
+    unless compiler_options.include? '-Wno-return-type'
+      compiler_options.append '-Wno-return-type'
+    end
+  end
+
+  # Ignore linking fails
+  if tool == :smacpp
+    unless compiler_options.include? '-fsyntax-only'
+      compiler_options.append '-fsyntax-only'
+    end
+  end
+end
+
+def check_result(correct_runs, incorrect_runs)
+  time = (correct_runs + incorrect_runs).map { |i| i[:time] }.sum
+  if correct_runs.any? { |run| warnings_or_errors? run }
+    [false, 'false positive', time]
+  elsif incorrect_runs.any? { |run| !warnings_or_errors? run }
+    [false, 'false negative', time]
+  else
+    [true, '', time]
+  end
+end
+
 def run_test_cases_for_single_tool(results, tool, compiler_options, correct,
                                    catch_bad, incorrect)
   if tool == :clang
-
-    # Ignore some warnings
-    compiler_options.append '-Wno-return-type'
-
-    success = true
-    failure_type = ''
+    extra_opts_for_tool compiler_options, tool
 
     correct_result = single_clang_run(compiler_options, correct)
     catch_bad_result = single_clang_run(compiler_options, catch_bad)
     incorrect_result = single_clang_run(compiler_options, incorrect)
 
-    if warnings_or_errors?(correct_result) ||
-       warnings_or_errors?(catch_bad_result)
-      success = false
-      failure_type = 'false positive'
-    elsif !warnings_or_errors? incorrect_result
-      success = false
-      failure_type = 'false negative'
-    end
+    success, failure_type, time = check_result(
+      [correct_result, catch_bad_result],
+      [incorrect_result]
+    )
 
     results[tool] = {
       success: success,
       failure_type: failure_type,
-      time: (correct_result[:time] + catch_bad_result[:time] +
-             incorrect_result[:time]),
+      time: time,
       raw: {
         correct_result: correct_result,
         catch_bad_result: catch_bad_result,
@@ -138,30 +156,21 @@ def run_test_cases_for_single_tool(results, tool, compiler_options, correct,
       }
     }
   elsif tool == :smacpp
-    # Ignore some warnings
-    compiler_options.append '-Wno-return-type'
-
-    success = true
-    failure_type = ''
+    extra_opts_for_tool compiler_options, tool
 
     correct_result = single_smacpp_run(compiler_options, correct)
     catch_bad_result = single_smacpp_run(compiler_options, catch_bad)
     incorrect_result = single_smacpp_run(compiler_options, incorrect)
 
-    if warnings_or_errors?(correct_result) ||
-       warnings_or_errors?(catch_bad_result)
-      success = false
-      failure_type = 'false positive'
-    elsif !warnings_or_errors? incorrect_result
-      success = false
-      failure_type = 'false negative'
-    end
+    success, failure_type, time = check_result(
+      [correct_result, catch_bad_result],
+      [incorrect_result]
+    )
 
     results[tool] = {
       success: success,
       failure_type: failure_type,
-      time: (correct_result[:time] + catch_bad_result[:time] +
-             incorrect_result[:time]),
+      time: time,
       raw: {
         correct_result: correct_result,
         catch_bad_result: catch_bad_result,
@@ -169,30 +178,87 @@ def run_test_cases_for_single_tool(results, tool, compiler_options, correct,
       }
     }
   elsif tool == :frama
-    success = true
-    failure_type = ''
-
     correct_result = single_frama_run(compiler_options, correct)
     catch_bad_result = single_frama_run(compiler_options, catch_bad)
     incorrect_result = single_frama_run(compiler_options, incorrect)
 
-    if warnings_or_errors?(correct_result) ||
-       warnings_or_errors?(catch_bad_result)
-      success = false
-      failure_type = 'false positive'
-    elsif !warnings_or_errors? incorrect_result
-      success = false
-      failure_type = 'false negative'
-    end
+    success, failure_type, time = check_result(
+      [correct_result, catch_bad_result],
+      [incorrect_result]
+    )
+    results[tool] = {
+      success: success,
+      failure_type: failure_type,
+      time: time,
+      raw: {
+        correct_result: correct_result,
+        catch_bad_result: catch_bad_result,
+        incorrect_result: incorrect_result
+      }
+    }
+  else
+    raise ArgumentError, 'invalid tool'
+  end
+end
+
+def run_test_cases_single_flags(results, tool, good_flags, incorrect_flags, file)
+  if tool == :clang
+    extra_opts_for_tool good_flags, tool
+    extra_opts_for_tool incorrect_flags, tool
+
+    correct_result = single_clang_run(good_flags, file)
+    incorrect_result = single_clang_run(incorrect_flags, file)
+
+    success, failure_type, time = check_result(
+      [correct_result],
+      [incorrect_result]
+    )
 
     results[tool] = {
       success: success,
       failure_type: failure_type,
-      time: (correct_result[:time] + catch_bad_result[:time] +
-             incorrect_result[:time]),
+      time: time,
       raw: {
         correct_result: correct_result,
-        catch_bad_result: catch_bad_result,
+        incorrect_result: incorrect_result
+      }
+    }
+  elsif tool == :smacpp
+    extra_opts_for_tool good_flags, tool
+    extra_opts_for_tool incorrect_flags, tool
+
+    correct_result = single_smacpp_run(good_flags, file)
+    incorrect_result = single_smacpp_run(incorrect_flags, file)
+
+    success, failure_type, time = check_result(
+      [correct_result],
+      [incorrect_result]
+    )
+
+    results[tool] = {
+      success: success,
+      failure_type: failure_type,
+      time: time,
+      raw: {
+        correct_result: correct_result,
+        incorrect_result: incorrect_result
+      }
+    }
+  elsif tool == :frama
+    correct_result = single_frama_run(good_flags, file)
+    incorrect_result = single_frama_run(incorrect_flags, file)
+
+    success, failure_type, time = check_result(
+      [correct_result],
+      [incorrect_result]
+    )
+
+    results[tool] = {
+      success: success,
+      failure_type: failure_type,
+      time: time,
+      raw: {
+        correct_result: correct_result,
         incorrect_result: incorrect_result
       }
     }
@@ -217,6 +283,15 @@ def run_test_cases(results, includes, correct, catch_bad, incorrect)
                                  correct, catch_bad, incorrect
 end
 
+def run_test_cases_defines(results, good_flags, incorrect_flags, file)
+  run_test_cases_single_flags results, :clang,
+                              good_flags, incorrect_flags, file
+  run_test_cases_single_flags results, :smacpp,
+                              good_flags, incorrect_flags, file
+  run_test_cases_single_flags results, :frama,
+                              good_flags, incorrect_flags, file
+end
+
 def handle_jm_case(includes, include_folder, file)
   result = {}
 
@@ -224,6 +299,17 @@ def handle_jm_case(includes, include_folder, file)
                  File.join(include_folder, 'test_correct', file),
                  File.join(include_folder, 'test_correct_catch_bad', file),
                  File.join(include_folder, 'test_incorrect', file)
+
+  result
+end
+
+def handle_juliet_case(includes, file)
+  result = {}
+
+  flags = includes.map { |i| ['-I', i] }.flatten + ['-DINCLUDEMAIN']
+
+  run_test_cases_defines result, flags + ['-DOMITBAD'],
+                         flags + ['-DOMITGOOD'], file
 
   result
 end
@@ -250,6 +336,49 @@ def jm2018ts_test_case(folder)
   end
 end
 
+def juliet_test_cases(folder)
+  folder = File.absolute_path folder
+  makefile = File.join folder, 'Makefile'
+  raise ArgumentError, 'Juliet test case folder has no Makefile' unless
+    File.exist? makefile
+
+  includes = [File
+    .absolute_path(
+      'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/testcasesupport'
+    )]
+
+  Dir.entries(folder).each do |f|
+    full_path = File.join folder, f
+
+    next if File.directory? full_path
+
+    next unless f =~ /CWE.*\.c/i
+
+    puts "Running test case: #{f}"
+    result = handle_juliet_case includes, full_path
+
+    $results[f] = result
+  end
+end
+
+def generate_summary(results)
+  summary = {
+    total_runtimes: {
+      clang: results.map { |_key, value| value[:clang][:time] }.sum,
+      smacpp: results.map { |_key, value| value[:smacpp][:time] }.sum,
+      frama: results.map { |_key, value| value[:frama][:time] }.sum
+    },
+    total_tests: results.length,
+    passed: {
+      clang: results.select { |_key, value| value[:clang][:success] }.length,
+      smacpp: results.select { |_key, value| value[:smacpp][:success] }.length,
+      frama: results.select { |_key, value| value[:frama][:success] }.length
+    }
+  }
+
+  File.write 'results_summary.json', JSON.pretty_generate(summary)
+end
+
 jm2018ts_test_case 'test/data/JM2018TS/strings/unbounded_copy'
 jm2018ts_test_case 'test/data/JM2018TS/strings/overflow'
 jm2018ts_test_case 'test/data/JM2018TS/memory/double_free'
@@ -258,12 +387,18 @@ jm2018ts_test_case 'test/data/JM2018TS/memory/leak'
 jm2018ts_test_case 'test/data/JM2018TS/memory/refer_free'
 jm2018ts_test_case 'test/data/JM2018TS/memory/zero_alloc'
 
+juliet_test_cases(
+  'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+  'testcases/CWE126_Buffer_Overread/s01'
+)
+
 puts ''
 puts 'Finished running'
 File.write 'results.json', JSON.pretty_generate($results)
 
 File.open('results_table.tex', 'w') do |file|
-  $results.each do |key, value|
+  $results.sort_by { |_k, value| value[:smacpp][:success] ? 0 : 1 }
+          .each do |key, value|
     smacpp = value[:smacpp][:success]
     clang_success = value[:clang][:success]
     frama_success = value[:frama][:success]
@@ -271,16 +406,14 @@ File.open('results_table.tex', 'w') do |file|
 
     # failure = value[:clang][:failure_type] unless clang_success
 
-    combined_result = clang_success || smacpp
+    # combined_result = clang_success || smacpp
 
-    failure = if combined_result
-                ''
-              else
-                value[:smacpp][:failure_type]
-              end
+    failure = value[:smacpp][:failure_type]
 
-    file.puts "#{sanitized_key} & #{clang_success} & #{smacpp} & " \
-              "#{combined_result} & #{frama_success} & #{failure} \\\\"
+    file.puts "#{sanitized_key} & #{clang_success} & #{frama_success} & " \
+              "#{smacpp} & #{failure} \\\\"
     file.puts('\hline')
   end
 end
+
+generate_summary $results

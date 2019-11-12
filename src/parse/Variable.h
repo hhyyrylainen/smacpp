@@ -1,5 +1,7 @@
 #pragma once
 
+#include "rotate.h"
+
 #include <clang/AST/Stmt.h>
 
 #include <cstdint>
@@ -286,3 +288,77 @@ inline const char* Dump(OPERATOR op)
 }
 
 } // namespace smacpp
+
+namespace std {
+
+template<>
+struct hash<smacpp::VariableIdentifier> {
+    std::size_t operator()(const smacpp::VariableIdentifier& k) const
+    {
+        return hash<std::string>()(k.Name);
+    }
+};
+
+template<>
+struct hash<smacpp::BufferInfo> {
+    std::size_t operator()(const smacpp::BufferInfo& k) const
+    {
+        return hash()(k.AllocatedSize) ^ (hash()(k.NullPtr) << 1);
+    }
+};
+
+template<>
+struct hash<smacpp::PrimitiveInfo> {
+    std::size_t operator()(const smacpp::PrimitiveInfo& k) const
+    {
+        return hash<std::variant<bool, smacpp::PrimitiveInfo::Integer, double>>()(k.Value);
+    }
+};
+
+template<>
+struct hash<smacpp::VarCopyInfo> {
+    std::size_t operator()(const smacpp::VarCopyInfo& k) const
+    {
+        return hash<smacpp::VariableIdentifier>()(k.Source);
+    }
+};
+
+template<>
+struct hash<smacpp::ComputeInfo> {
+    std::size_t operator()(const smacpp::ComputeInfo& k) const;
+};
+
+template<>
+struct hash<smacpp::VariableState> {
+    std::size_t operator()(const smacpp::VariableState& k) const
+    {
+        return hash<std::variant<std::monostate, smacpp::BufferInfo, smacpp::PrimitiveInfo,
+                   smacpp::VarCopyInfo, smacpp::ComputeInfo>>()(k.Value) ^
+               (hash<smacpp::VariableState::STATE>()(k.State) << 1);
+    }
+};
+
+inline std::size_t hash<smacpp::ComputeInfo>::operator()(const smacpp::ComputeInfo& k) const
+{
+    return hash<smacpp::VariableState>()(*k.LHS) ^
+           (hash<smacpp::VariableState>()(*k.LHS) << 1) ^
+           (hash<smacpp::OPERATOR>()(k.Operation) << 2);
+}
+
+// For variable lists to work with hashing
+template<>
+struct hash<std::vector<smacpp::VariableState>> {
+    std::size_t operator()(const std::vector<smacpp::VariableState>& k) const
+    {
+        std::size_t result = hash<size_t>()(k.size());
+
+        for(size_t i = 0; i < k.size(); ++i) {
+
+            result ^= ::rotateLeft(hash<smacpp::VariableState>()(k[i]), i);
+        }
+
+        return result;
+    }
+};
+
+} // namespace std

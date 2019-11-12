@@ -89,13 +89,7 @@ bool DoneAnalysisRegistry::HasBeenDone(
         return false;
     }
 
-    for(const auto& paramSet : found->second) {
-
-        if(params == paramSet)
-            return true;
-    }
-
-    return false;
+    return found->second.find(params) != found->second.end();
 }
 
 void DoneAnalysisRegistry::Add(const CodeBlock* func, const std::vector<VariableState>& params)
@@ -105,7 +99,7 @@ void DoneAnalysisRegistry::Add(const CodeBlock* func, const std::vector<Variable
     if(existing == RecordedFunctionCalls.end()) {
         RecordedFunctionCalls[func->GetName()] = {params};
     } else {
-        existing->second.push_back(params);
+        existing->second.insert(params);
     }
 }
 

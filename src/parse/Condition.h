@@ -125,19 +125,3 @@ private:
     std::optional<Part> VariableConditions;
 };
 } // namespace smacpp
-
-
-namespace std {
-
-template<>
-struct hash<smacpp::VariableIdentifier> {
-    std::size_t operator()(const smacpp::VariableIdentifier& k) const
-    {
-        using std::hash;
-        using std::size_t;
-
-        return hash<std::string>()(k.Name);
-    }
-};
-
-} // namespace std
