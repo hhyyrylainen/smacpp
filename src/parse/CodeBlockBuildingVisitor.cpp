@@ -134,6 +134,12 @@ public:
         BaseCondition(baseCondition), SwitchVar(switchVar)
     {}
 
+    CaseConditionalVisitor(Condition baseCondition, VariableState constant,
+        clang::ASTContext& context, CodeBlock& target, bool debug) :
+        ValueVisitBase(context, target, debug),
+        BaseCondition(baseCondition), SwitchVar("unused"), SwitchConstant(constant)
+    {}
+
     bool VisitCaseStmt(clang::CaseStmt* stmt)
     {
         if(!stmt->getLHS()) {
@@ -152,13 +158,11 @@ public:
             return true;
         }
 
-        Condition newCondition(Condition::Part(VariableValueCondition(
-            SwitchVar, ValueRange(COMPARISON::EQUAL, *literal.FoundValue))));
+        const auto range = ValueRange(COMPARISON::EQUAL, *literal.FoundValue);
 
-        if(newCondition.IsAlwaysTrue()) {
-            llvm::outs() << "Logic error in case stmt parsing, condition is always true\n";
-            return true;
-        }
+        Condition newCondition(
+            SwitchConstant ? Condition::Part(VariableStateCondition(*SwitchConstant, range)) :
+                             Condition::Part(VariableValueCondition(SwitchVar, range)));
 
         SwitchCases.push_back(newCondition);
         if(CurrentSwitchCondition.IsAlwaysTrue()) {
@@ -201,9 +205,8 @@ public:
         }
 
         if(defaultCondition.IsAlwaysTrue()) {
-            llvm::outs()
-                << "Logic error in case stmt parsing, default condition is always true\n";
-            return true;
+            if(Debug)
+                llvm::outs() << "default condition is always true\n";
         }
 
         if(CurrentSwitchCondition.IsAlwaysTrue()) {
@@ -232,6 +235,7 @@ protected:
     Condition CurrentSwitchCondition;
     std::vector<Condition> SwitchCases;
     VariableIdentifier SwitchVar;
+    std::optional<VariableState> SwitchConstant;
 };
 // ------------------------------------ //
 // CodeBlockBuildingVisitor::ValueVisitBase
@@ -337,6 +341,7 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseIfStmt(clang::IfStmt* stm
 bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseSwitchStmt(clang::SwitchStmt* stmt)
 {
     std::optional<VariableIdentifier> var;
+    std::optional<VariableState> literal;
 
     if(stmt->getConditionVariable()) {
 
@@ -350,11 +355,22 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseSwitchStmt(clang::SwitchS
         visitor.TraverseStmt(stmt->getCond());
 
         if(!visitor.FoundVar) {
-            llvm::outs() << "Could not find switch variable\n";
-            return true;
-        }
 
-        var = visitor.FoundVar;
+            LiteralStateVisitor literalVisitor;
+            literalVisitor.TraverseStmt(stmt->getCond());
+
+            if(literalVisitor.FoundValue) {
+                llvm::outs() << "Switch with a literal value\n";
+                literal = literalVisitor.FoundValue;
+            } else {
+
+                llvm::outs() << "Could not find switch variable\n";
+                return true;
+            }
+        } else {
+
+            var = visitor.FoundVar;
+        }
 
     } else {
         if(Debug)
@@ -364,7 +380,9 @@ bool CodeBlockBuildingVisitor::ValueVisitBase::TraverseSwitchStmt(clang::SwitchS
     if(Debug)
         llvm::outs() << "Traversing switch on variable: " << var->Dump() << "\n";
 
-    CaseConditionalVisitor visitor(GetCurrentCondition(), *var, Context, Target, Debug);
+    CaseConditionalVisitor visitor =
+        var ? CaseConditionalVisitor(GetCurrentCondition(), *var, Context, Target, Debug) :
+              CaseConditionalVisitor(GetCurrentCondition(), *literal, Context, Target, Debug);
     visitor.TraverseStmt(stmt->getBody());
 
     return true;

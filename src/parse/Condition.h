@@ -28,6 +28,19 @@ public:
     ValueRange Value;
 };
 
+struct VariableStateCondition {
+public:
+    VariableStateCondition(VariableState state, ValueRange value) : State(state), Value(value)
+    {}
+
+    VariableStateCondition Negate() const;
+
+    std::string Dump() const;
+
+    VariableState State;
+    ValueRange Value;
+};
+
 //! Interface for providing variable values for evaluating a Condition
 class VariableValueProvider {
 public:
@@ -66,6 +79,7 @@ public:
             std::tuple<std::shared_ptr<Part>, COMBINE_OPERATOR, std::shared_ptr<Part>>;
 
         Part(VariableValueCondition value) : Value(value) {}
+        Part(VariableStateCondition value) : Value(value) {}
 
         Part(std::shared_ptr<Part> lhs, COMBINE_OPERATOR op, std::shared_ptr<Part> rhs) :
             Value(std::make_tuple(lhs, op, rhs))
@@ -85,7 +99,7 @@ public:
         std::string Dump() const;
 
         //! shared_ptrs are used here to make copying work
-        std::variant<VariableValueCondition, CombinedParts> Value;
+        std::variant<VariableValueCondition, VariableStateCondition, CombinedParts> Value;
     };
 
 

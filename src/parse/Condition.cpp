@@ -158,6 +158,17 @@ std::string VariableValueCondition::Dump() const
 {
     return Variable.Dump() + " " + Value.Dump();
 }
+// ------------------------------------ //
+// VariableStateCondition
+VariableStateCondition VariableStateCondition::Negate() const
+{
+    return VariableStateCondition(State, Value.Negate());
+}
+
+std::string VariableStateCondition::Dump() const
+{
+    return State.Dump() + " " + Value.Dump();
+}
 
 // ------------------------------------ //
 // Condition::Part
@@ -166,6 +177,17 @@ bool Condition::Part::Evaluate(const VariableValueProvider& values) const
     if(auto value = std::get_if<VariableValueCondition>(&Value); value) {
 
         const auto actualValue = values.GetVariableValue(value->Variable);
+
+        // TODO: somehow pass that this is unknown to the top level (maybe an exception?)
+        if(actualValue.State == VariableState::STATE::Unknown) {
+            return false;
+        }
+
+        return value->Value.Matches(actualValue, values);
+
+    } else if(auto value = std::get_if<VariableStateCondition>(&Value); value) {
+
+        const auto actualValue = value->State.Resolve(values);
 
         // TODO: somehow pass that this is unknown to the top level (maybe an exception?)
         if(actualValue.State == VariableState::STATE::Unknown) {
@@ -202,6 +224,10 @@ Condition::Part Condition::Part::Negate() const
 
         return Part(value->Negate());
 
+    } else if(auto value = std::get_if<VariableStateCondition>(&Value); value) {
+
+        return Part(value->Negate());
+
     } else if(auto combined = std::get_if<CombinedParts>(&Value); value) {
         return Part(std::make_shared<Part>(std::get<0>(*combined)->Negate()),
             NegateCombineOperator(std::get<1>(*combined)),
@@ -214,6 +240,10 @@ Condition::Part Condition::Part::Negate() const
 std::string Condition::Part::Dump() const
 {
     if(auto value = std::get_if<VariableValueCondition>(&Value); value) {
+
+        return value->Dump();
+
+    } else if(auto value = std::get_if<VariableStateCondition>(&Value); value) {
 
         return value->Dump();
 

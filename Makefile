@@ -2,6 +2,9 @@
 SMACPP=build/src/smacpp
 DEBUG_ARGS=-Xclang -plugin-arg-smacpp -Xclang -smacpp-debug -o /dev/null
 OVERFLOW_FOLDER=test/data/JM2018TS/strings/overflow
+JULIET_COMMON=test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/testcasesupport
+CWE126=test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/testcases/CWE126_Buffer_Overread
+JULIET_ARGS=-fsyntax-only -DINCLUDEMAIN -I $(JULIET_COMMON) $(DEBUG_ARGS)
 AST=-Xclang -ast-dump -fsyntax-only
 
 all: build cmake compile test
@@ -35,6 +38,10 @@ run_overflow_3: compile
 
 run_overflow_4: compile
 	$(SMACPP) $(DEBUG_ARGS) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)/test_incorrect/04_simple_switch.c
+
+# Used for development (adding constant switch value detection)
+run_CWE126_1: compile
+	$(SMACPP) $(JULIET_ARGS) $(CWE126)/s01/CWE126_Buffer_Overread__CWE170_char_memcpy_15.c
 
 clang_ast_view:
 	clang $(AST) -I $(OVERFLOW_FOLDER) $(OVERFLOW_FOLDER)//test_incorrect/01_simple_if.c
