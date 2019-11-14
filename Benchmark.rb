@@ -389,20 +389,21 @@ jm2018ts_test_case 'test/data/JM2018TS/memory/leak'
 jm2018ts_test_case 'test/data/JM2018TS/memory/refer_free'
 jm2018ts_test_case 'test/data/JM2018TS/memory/zero_alloc'
 
-juliet_test_cases(
-  'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
-  'testcases/CWE126_Buffer_Overread/s01'
-)
+# juliet_test_cases(
+#   'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+#   'testcases/CWE126_Buffer_Overread/s01'
+# )
 
-juliet_test_cases(
-  'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
-  'testcases/CWE126_Buffer_Overread/s02'
-)
+# juliet_test_cases(
+#   'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+#   'testcases/CWE126_Buffer_Overread/s02'
+# )
 
-juliet_test_cases(
-  'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
-  'testcases/CWE126_Buffer_Overread/s03'
-)
+# has no makefile so supposedly these are all windows-only
+# juliet_test_cases(
+#   'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+#   'testcases/CWE126_Buffer_Overread/s03'
+# )
 
 puts ''
 puts 'Finished running'
