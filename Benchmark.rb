@@ -12,6 +12,8 @@ SMACPP_PATH = 'build/src/smacpp'.freeze
 
 FileUtils.mkdir_p 'temp'
 
+KEEP_FRAMA_OUTPUT = false
+
 def run_process(*args)
   Dir.chdir 'temp' do
     # puts "command: #{args.join ' '}"
@@ -91,8 +93,8 @@ def single_frama_run(compiler_options, file)
   end
 
   {
-    out: stdout,
-    stderr: stderr,
+    out: KEEP_FRAMA_OUTPUT ? stdout : 'removed',
+    stderr: KEEP_FRAMA_OUTPUT ? stderr : 'removed',
     exit_code: status,
     error_count: error_count,
     warning_count: warning_count,
@@ -390,6 +392,16 @@ jm2018ts_test_case 'test/data/JM2018TS/memory/zero_alloc'
 juliet_test_cases(
   'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
   'testcases/CWE126_Buffer_Overread/s01'
+)
+
+juliet_test_cases(
+  'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+  'testcases/CWE126_Buffer_Overread/s02'
+)
+
+juliet_test_cases(
+  'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+  'testcases/CWE126_Buffer_Overread/s03'
 )
 
 puts ''
