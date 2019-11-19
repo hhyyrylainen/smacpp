@@ -1,18 +1,16 @@
 #!/usr/bin/env ruby
-# Runs all the tests for seeing how smacpp compares to clang analyzer and also if
-# they were both used how good the results were
+# Runs all the tests for seeing how smacpp compares to clang analyzer and also
+# if they were both used how good the results were
 require 'open3'
 require 'json'
 require 'fileutils'
 # require 'nokogiri'
 
-$results = {}
-
 SMACPP_PATH = 'build/src/smacpp'.freeze
 
 FileUtils.mkdir_p 'temp'
 
-KEEP_FRAMA_OUTPUT = false
+KEEP_FRAMA_OUTPUT = true
 
 def run_process(*args)
   Dir.chdir 'temp' do
@@ -316,7 +314,7 @@ def handle_juliet_case(includes, file)
   result
 end
 
-def jm2018ts_test_case(folder)
+def jm2018ts_test_case(results, folder)
   include_folder = File.absolute_path folder
 
   name_prefix = (folder.split('/').last 2).join '/'
@@ -332,13 +330,11 @@ def jm2018ts_test_case(folder)
 
     case_name = name_prefix + '/' + f
     puts "Running test case: #{case_name}"
-    result = handle_jm_case includes, include_folder, f
-
-    $results[case_name] = result
+    results[case_name] = handle_jm_case includes, include_folder, f
   end
 end
 
-def juliet_test_cases(folder)
+def juliet_test_cases(results, folder)
   folder = File.absolute_path folder
   makefile = File.join folder, 'Makefile'
   raise ArgumentError, 'Juliet test case folder has no Makefile' unless
@@ -357,13 +353,11 @@ def juliet_test_cases(folder)
     next unless f =~ /CWE.*\.c/i
 
     puts "Running test case: #{f}"
-    result = handle_juliet_case includes, full_path
-
-    $results[f] = result
+    results[f] = handle_juliet_case includes, full_path
   end
 end
 
-def generate_summary(results)
+def generate_summary(results, name)
   summary = {
     total_runtimes: {
       clang: results.map { |_key, value| value[:clang][:time] }.sum,
@@ -378,55 +372,88 @@ def generate_summary(results)
     }
   }
 
-  File.write 'results_summary.json', JSON.pretty_generate(summary)
+  File.write "#{name}_results_summary.json", JSON.pretty_generate(summary)
 end
 
-jm2018ts_test_case 'test/data/JM2018TS/strings/unbounded_copy'
-jm2018ts_test_case 'test/data/JM2018TS/strings/overflow'
-jm2018ts_test_case 'test/data/JM2018TS/memory/double_free'
-jm2018ts_test_case 'test/data/JM2018TS/memory/access_uninit'
-jm2018ts_test_case 'test/data/JM2018TS/memory/leak'
-jm2018ts_test_case 'test/data/JM2018TS/memory/refer_free'
-jm2018ts_test_case 'test/data/JM2018TS/memory/zero_alloc'
+def write_results(results, name)
+  File.write "#{name}_results.json", JSON.pretty_generate(results)
 
-# juliet_test_cases(
-#   'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
-#   'testcases/CWE126_Buffer_Overread/s01'
-# )
+  File.open("#{name}_results_table.tex", 'w') do |file|
+    results.sort_by { |_k, value| value[:smacpp][:success] ? 0 : 1 }
+           .each do |key, value|
+      smacpp = value[:smacpp][:success]
+      clang_success = value[:clang][:success]
+      frama_success = value[:frama][:success]
+      sanitized_key = key.gsub('_', '\_').tr('/', ' ')
 
-# juliet_test_cases(
-#   'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
-#   'testcases/CWE126_Buffer_Overread/s02'
-# )
+      # failure = value[:clang][:failure_type] unless clang_success
 
-# has no makefile so supposedly these are all windows-only
-# juliet_test_cases(
-#   'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
-#   'testcases/CWE126_Buffer_Overread/s03'
-# )
+      # combined_result = clang_success || smacpp
 
-puts ''
-puts 'Finished running'
-File.write 'results.json', JSON.pretty_generate($results)
+      failure = value[:smacpp][:failure_type]
 
-File.open('results_table.tex', 'w') do |file|
-  $results.sort_by { |_k, value| value[:smacpp][:success] ? 0 : 1 }
-          .each do |key, value|
-    smacpp = value[:smacpp][:success]
-    clang_success = value[:clang][:success]
-    frama_success = value[:frama][:success]
-    sanitized_key = key.gsub('_', '\_').tr('/', ' ')
-
-    # failure = value[:clang][:failure_type] unless clang_success
-
-    # combined_result = clang_success || smacpp
-
-    failure = value[:smacpp][:failure_type]
-
-    file.puts "#{sanitized_key} & #{clang_success} & #{frama_success} & " \
-              "#{smacpp} & #{failure} \\\\"
-    file.puts('\hline')
+      file.puts "#{sanitized_key} & #{clang_success} & #{frama_success} & " \
+                "#{smacpp} & #{failure} \\\\"
+      file.puts('\hline')
+    end
   end
 end
 
-generate_summary $results
+def run_jm2018ts
+  results = {}
+  jm2018ts_test_case results, 'test/data/JM2018TS/strings/unbounded_copy'
+  jm2018ts_test_case results, 'test/data/JM2018TS/strings/overflow'
+  jm2018ts_test_case results, 'test/data/JM2018TS/memory/double_free'
+  jm2018ts_test_case results, 'test/data/JM2018TS/memory/access_uninit'
+  jm2018ts_test_case results, 'test/data/JM2018TS/memory/leak'
+  jm2018ts_test_case results, 'test/data/JM2018TS/memory/refer_free'
+  jm2018ts_test_case results, 'test/data/JM2018TS/memory/zero_alloc'
+
+  results
+end
+
+def run_juliet_cases
+  results = {}
+  juliet_test_cases(
+    results,
+    'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+    'testcases/CWE126_Buffer_Overread/s01'
+  )
+
+  juliet_test_cases(
+    results,
+    'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+    'testcases/CWE126_Buffer_Overread/s02'
+  )
+
+  # has no makefile so supposedly these are all windows-only
+  # juliet_test_cases(
+  #   'test/data/Juliet_Test_Suite_v1.3_for_C_Cpp/C/' \
+  #   'testcases/CWE126_Buffer_Overread/s03'
+  # )
+
+  results
+end
+
+def do_jm_run
+  puts 'Running jm (Moerman) cases'
+  results = run_jm2018ts
+
+  write_results results, 'jm'
+  generate_summary results, 'jm'
+end
+
+def do_juliet_run
+  puts 'Running juliet cases'
+  results = run_juliet_cases
+
+  write_results results, 'juliet'
+  generate_summary results, 'juliet'
+end
+
+do_jm_run
+
+do_juliet_run
+
+puts ''
+puts 'Finished running'
