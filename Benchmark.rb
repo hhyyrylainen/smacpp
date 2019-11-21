@@ -357,7 +357,26 @@ def juliet_test_cases(results, folder)
   end
 end
 
+def get_failure_reasons(results, tool)
+  results.select { |_key, value| value[tool][:success] == false }
+         .map { |_key, value| value[tool] }
+         .group_by do |value|
+    value[:failure_type]
+  end.map do |key, values|
+    {
+      type: key,
+      count: values.length
+    }
+  end
+end
+
 def generate_summary(results, name)
+  failure_reasons = {
+    clang: get_failure_reasons(results, :clang),
+    smacpp: get_failure_reasons(results, :smacpp),
+    frama: get_failure_reasons(results, :frama)
+  }
+
   summary = {
     total_runtimes: {
       clang: results.map { |_key, value| value[:clang][:time] }.sum,
@@ -369,7 +388,8 @@ def generate_summary(results, name)
       clang: results.select { |_key, value| value[:clang][:success] }.length,
       smacpp: results.select { |_key, value| value[:smacpp][:success] }.length,
       frama: results.select { |_key, value| value[:frama][:success] }.length
-    }
+    },
+    failure_reasons: failure_reasons
   }
 
   File.write "#{name}_results_summary.json", JSON.pretty_generate(summary)
