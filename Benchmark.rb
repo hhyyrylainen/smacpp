@@ -374,20 +374,23 @@ def generate_summary(results, name)
   failure_reasons = {
     clang: get_failure_reasons(results, :clang),
     smacpp: get_failure_reasons(results, :smacpp),
-    frama: get_failure_reasons(results, :frama)
+    frama: get_failure_reasons(results, :frama),
+    combined: get_failure_reasons(results, :combined)
   }
 
   summary = {
     total_runtimes: {
       clang: results.map { |_key, value| value[:clang][:time] }.sum,
       smacpp: results.map { |_key, value| value[:smacpp][:time] }.sum,
-      frama: results.map { |_key, value| value[:frama][:time] }.sum
+      frama: results.map { |_key, value| value[:frama][:time] }.sum,
+      combined: results.map { |_key, value| value[:combined][:time] }.sum
     },
     total_tests: results.length,
     passed: {
       clang: results.select { |_key, value| value[:clang][:success] }.length,
       smacpp: results.select { |_key, value| value[:smacpp][:success] }.length,
-      frama: results.select { |_key, value| value[:frama][:success] }.length
+      frama: results.select { |_key, value| value[:frama][:success] }.length,
+      combined: results.select { |_key, value| value[:combined][:success] }.length
     },
     failure_reasons: failure_reasons
   }
@@ -404,6 +407,7 @@ def write_results(results, name)
       smacpp = value[:smacpp][:success]
       clang_success = value[:clang][:success]
       frama_success = value[:frama][:success]
+      combined_success = value[:combined][:success]
       sanitized_key = key.gsub('_', '\_').tr('/', ' ')
 
       # failure = value[:clang][:failure_type] unless clang_success
@@ -414,8 +418,35 @@ def write_results(results, name)
 
       file.puts "#{sanitized_key} & #{clang_success} & #{frama_success} & " \
                 "#{smacpp} & #{failure} \\\\"
+      # & #{combined_success}
       file.puts('\hline')
     end
+  end
+end
+
+def create_combined_results(results)
+  results.each do |_test, value|
+    smacpp_success = value[:smacpp][:success]
+    smacpp_failure = value[:smacpp][:failure_type]
+    clang_success = value[:clang][:success]
+    clang_failure = value[:clang][:failure_type]
+
+    combined = {
+      failure_type: smacpp_failure || clang_failure,
+      time: value[:smacpp][:time] + value[:clang][:time]
+    }
+
+    combined[:success] = if smacpp_success && clang_success
+                           true
+                         elsif smacpp_success && !clang_success
+                           clang_failure != 'false positive'
+                         elsif !smacpp_success && clang_success
+                           smacpp_failure != 'false positive'
+                         else
+                           false
+                         end
+
+    value[:combined] = combined
   end
 end
 
@@ -459,6 +490,7 @@ def do_jm_run
   puts 'Running jm (Moerman) cases'
   results = run_jm2018ts
 
+  create_combined_results results
   write_results results, 'jm'
   generate_summary results, 'jm'
 end
@@ -467,6 +499,7 @@ def do_juliet_run
   puts 'Running juliet cases'
   results = run_juliet_cases
 
+  create_combined_results results
   write_results results, 'juliet'
   generate_summary results, 'juliet'
 end
