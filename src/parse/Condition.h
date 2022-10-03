@@ -5,6 +5,7 @@
 #include <clang/AST/Stmt.h>
 
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <variant>
 
