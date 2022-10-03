@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <string>
+#include <optional>
 #include <variant>
 
 namespace smacpp {
