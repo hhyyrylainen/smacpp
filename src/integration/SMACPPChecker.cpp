@@ -61,7 +61,7 @@ void SMACPPChecker::checkBind(
         source->dumpToStream(llvm::outs());
     else {
         llvm::outs() << " statement: ";
-        S->dump(llvm::outs());
+        S->dump();
     }
 
 
